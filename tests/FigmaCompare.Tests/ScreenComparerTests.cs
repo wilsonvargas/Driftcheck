@@ -6,6 +6,7 @@ using SkiaSharp;
 
 namespace FigmaCompare.Tests;
 
+[Collection(OutputDirectoryCollection.Name)]
 public class ScreenComparerTests : IDisposable
 {
     // Densidad 160 → 1 px = 1 dp, así las cuentas del test son directas.

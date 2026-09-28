@@ -15,7 +15,9 @@ public sealed record DesignElement(
     double? FontWeight,
     double? CornerRadius);
 
-public sealed record DesignFrame(string FileKey, string NodeId, string Name, Rect Bounds, IReadOnlyList<DesignElement> Elements);
+/// <param name="CachedAt">Fecha en que se descargó, si viene de la caché local; null si se acaba de descargar.</param>
+public sealed record DesignFrame(
+    string FileKey, string NodeId, string Name, Rect Bounds, IReadOnlyList<DesignElement> Elements, DateTime? CachedAt = null);
 
 public sealed partial class FigmaClient(HttpClient http, Settings settings)
 {
@@ -39,11 +41,30 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
         return (m.Groups[1].Value, nodeId);
     }
 
-    public async Task<DesignFrame> GetFrameAsync(string url, CancellationToken ct = default)
+    /// <summary>
+    /// Descarga el frame, o lo lee de la caché local. La API de Figma tiene un cupo muy bajo en algunos
+    /// tipos de cuenta (unas pocas llamadas por período), así que cada frame se descarga una sola vez
+    /// salvo que se pida <paramref name="refresh"/>.
+    /// </summary>
+    public async Task<DesignFrame> GetFrameAsync(string url, bool refresh = false, CancellationToken ct = default)
     {
         var (fileKey, nodeId) = ParseUrl(url);
-        using var doc = await GetJsonAsync($"{Api}/files/{fileKey}/nodes?ids={Uri.EscapeDataString(nodeId)}", ct);
+        var cachePath = CachePath(fileKey, nodeId, "json");
 
+        DateTime? cachedAt = null;
+        string json;
+        if (!refresh && File.Exists(cachePath))
+        {
+            json = await File.ReadAllTextAsync(cachePath, ct);
+            cachedAt = File.GetLastWriteTime(cachePath);
+        }
+        else
+        {
+            json = await GetStringAsync($"{Api}/files/{fileKey}/nodes?ids={Uri.EscapeDataString(nodeId)}", ct);
+            await File.WriteAllTextAsync(cachePath, json, ct);
+        }
+
+        using var doc = JsonDocument.Parse(json);
         var node = doc.RootElement.GetProperty("nodes").GetProperty(nodeId).GetProperty("document");
         var frameBounds = ReadBox(node) ?? throw new InvalidOperationException("El nodo no tiene absoluteBoundingBox.");
 
@@ -53,26 +74,35 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
                 Collect(child, frameBounds, elements);
 
         return new DesignFrame(fileKey, nodeId, node.GetProperty("name").GetString() ?? nodeId,
-            frameBounds with { X = 0, Y = 0 }, elements);
+            frameBounds with { X = 0, Y = 0 }, elements, cachedAt);
     }
 
-    /// <summary>Renderiza el frame a PNG y devuelve la ruta local.</summary>
-    public async Task<string> RenderPngAsync(string url, double scale, CancellationToken ct = default)
+    /// <summary>Renderiza el frame a PNG (o lo toma de la caché) y devuelve la ruta local.</summary>
+    public async Task<string> RenderPngAsync(string url, double scale, bool refresh = false, CancellationToken ct = default)
     {
         var (fileKey, nodeId) = ParseUrl(url);
-        using var doc = await GetJsonAsync(
-            $"{Api}/images/{fileKey}?ids={Uri.EscapeDataString(nodeId)}&format=png&scale={scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}", ct);
+        var scaleText = scale.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var path = CachePath(fileKey, nodeId, $"{scaleText}x.png");
+        if (!refresh && File.Exists(path)) return path;
+
+        using var doc = JsonDocument.Parse(await GetStringAsync(
+            $"{Api}/images/{fileKey}?ids={Uri.EscapeDataString(nodeId)}&format=png&scale={scaleText}", ct));
 
         var imageUrl = doc.RootElement.GetProperty("images").GetProperty(nodeId).GetString()
             ?? throw new InvalidOperationException("Figma no devolvió la imagen del frame.");
 
-        Directory.CreateDirectory(settings.OutputDirectory);
-        var path = Path.Combine(settings.OutputDirectory, $"figma_{fileKey}_{nodeId.Replace(':', '-')}.png");
         await File.WriteAllBytesAsync(path, await http.GetByteArrayAsync(imageUrl, ct), ct);
         return path;
     }
 
-    async Task<JsonDocument> GetJsonAsync(string url, CancellationToken ct)
+    string CachePath(string fileKey, string nodeId, string suffix)
+    {
+        var dir = Path.Combine(settings.OutputDirectory, "cache");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, $"{fileKey}_{nodeId.Replace(':', '-')}.{suffix}");
+    }
+
+    async Task<string> GetStringAsync(string url, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(settings.FigmaToken))
             throw new InvalidOperationException("Falta la variable de entorno FIGMA_TOKEN (Personal Access Token de Figma con alcance File content: Read-only).");
@@ -82,11 +112,23 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
 
         using var res = await http.SendAsync(req, ct);
         var body = await res.Content.ReadAsStringAsync(ct);
+
+        if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            var wait = res.Headers.RetryAfter?.Delta is { } delta ? $" Figma pide esperar {FormatWait(delta)}." : "";
+            throw new InvalidOperationException(
+                $"Figma rechazó la solicitud por límite de uso (429).{wait} Los frames ya descargados siguen " +
+                "funcionando desde la caché; el cupo depende del tipo de asiento de la cuenta dueña del token.");
+        }
+
         if (!res.IsSuccessStatusCode)
             throw new InvalidOperationException($"Figma API {(int)res.StatusCode}: {body}");
 
-        return JsonDocument.Parse(body);
+        return body;
     }
+
+    static string FormatWait(TimeSpan t) =>
+        t.TotalDays >= 1 ? $"{t.TotalDays:0.#} días" : t.TotalHours >= 1 ? $"{t.TotalHours:0.#} horas" : $"{Math.Ceiling(t.TotalMinutes)} minutos";
 
     static void Collect(JsonElement node, Rect frame, List<DesignElement> output)
     {

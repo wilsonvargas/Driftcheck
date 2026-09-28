@@ -29,14 +29,22 @@ public sealed class ScreenComparer(Settings settings)
         using var designPng = SKBitmap.Decode(designPngPath)
             ?? throw new InvalidOperationException("No pude leer el PNG de Figma.");
 
-        // 1 unidad de Figma = 1 dp cuando el frame mide lo mismo que el dispositivo;
-        // si no, escalamos el diseño al ancho lógico del dispositivo.
         var pxToDp = 160.0 / capture.Density;
         var deviceWidthDp = screenshot.Width * pxToDp;
-        var scale = deviceWidthDp / design.Bounds.Width;
+        var scale = ChooseScale(design.Bounds.Width, deviceWidthDp);
+
+        // Ancho que le sobra (o falta) al dispositivo respecto al frame. Con 1:1 en dp, un margen de 35
+        // sigue siendo 35: lo que cambia es el ancho de lo que se estira o la x de lo centrado.
+        var extraWidth = deviceWidthDp - design.Bounds.Width * scale;
 
         var match = ElementMatcher.Match(design.Elements, capture.Elements, scale);
         var (pairs, missing, dx, dy) = (match.Pairs, match.Missing, match.Dx, match.Dy);
+
+        // Con anchos distintos, la mediana de dx mezcla elementos anclados a la izquierda con centrados
+        // y no significa nada; el ajuste horizontal lo hace FitHorizontally por elemento.
+        if (Math.Abs(extraWidth) > tolerance) dx = 0;
+
+        var expectedBounds = new Dictionary<DesignElement, Rect>(ReferenceEqualityComparer.Instance);
 
         var diffs = new List<ElementDiff>();
         var badElements = new HashSet<DesignElement>(ReferenceEqualityComparer.Instance);
@@ -44,8 +52,9 @@ public sealed class ScreenComparer(Settings settings)
 
         foreach (var (d, s, _) in pairs)
         {
-            var expected = d.Bounds.Scale(scale).Offset(dx, dy);
             var actual = s.Bounds;
+            var expected = FitHorizontally(d.Bounds.Scale(scale).Offset(dx, dy), extraWidth, actual);
+            expectedBounds[d] = expected;
             var label = Label(d);
 
             void Check(string prop, double exp, double act)
@@ -85,23 +94,24 @@ public sealed class ScreenComparer(Settings settings)
         var runDir = Path.Combine(settings.OutputDirectory, DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture));
         Directory.CreateDirectory(runDir);
 
-        // El PNG de Figma, escalado y desplazado para superponerse a la captura.
-        var dxPx = (float)(dx / pxToDp);
+        // El PNG de Figma, al tamaño en dp del diseño, centrado y desplazado para superponerse a la captura.
+        var destWidth = (float)(design.Bounds.Width * scale / pxToDp);
+        var destLeft = (float)((dx + extraWidth / 2) / pxToDp);
         var dyPx = (float)(dy / pxToDp);
         using var alignedDesign = new SKBitmap(screenshot.Width, screenshot.Height);
         using (var canvas = new SKCanvas(alignedDesign))
         {
             canvas.Clear(SKColors.White);
-            var destHeight = designPng.Height * (float)screenshot.Width / designPng.Width;
+            var destHeight = designPng.Height * destWidth / designPng.Width;
             using var image = SKImage.FromBitmap(designPng);
-            canvas.DrawImage(image, SKRect.Create(dxPx, dyPx, screenshot.Width, destHeight), new SKSamplingOptions(SKFilterMode.Linear));
+            canvas.DrawImage(image, SKRect.Create(destLeft, dyPx, destWidth, destHeight), new SKSamplingOptions(SKFilterMode.Linear));
         }
 
-        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, scale, dx, dy, pxToDp,
+        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, pxToDp,
             Path.Combine(runDir, "diff.png"));
         WriteSideBySide(alignedDesign, screenshot, Path.Combine(runDir, "side_by_side.png"));
 
-        var report = BuildReport(design, capture, scale, dx, dy, pairs, missing, diffs, mismatchRatio, runDir);
+        var report = BuildReport(design, capture, scale, extraWidth, dx, dy, pairs, missing, diffs, mismatchRatio, runDir);
         File.WriteAllText(Path.Combine(runDir, "report.md"), report);
 
         return new ComparisonResult(report,
@@ -110,10 +120,39 @@ public sealed class ScreenComparer(Settings settings)
             pairs.Count, diffs);
     }
 
+    /// <summary>
+    /// Un frame de Figma está en las mismas unidades que los dp, así que se compara 1:1 aunque el
+    /// dispositivo sea algo más ancho o angosto (430 vs 411): los márgenes y alturas de un layout MAUI
+    /// no se encogen. Solo si la diferencia es grande (un diseño exportado a @2x, o de tablet)
+    /// se escala el diseño al ancho del dispositivo.
+    /// </summary>
+    public static double ChooseScale(double designWidth, double deviceWidth)
+    {
+        var ratio = deviceWidth / designWidth;
+        return ratio is >= 0.75 and <= 1.33 ? 1 : ratio;
+    }
+
+    /// <summary>
+    /// Posición horizontal esperada cuando el dispositivo tiene <paramref name="extraWidth"/> dp más que el
+    /// frame. Un elemento puede estar anclado a la izquierda, a la derecha, centrado o estirado de borde a
+    /// borde; como el diseño no lo dice de forma fiable, se usa la interpretación que mejor explica la app.
+    /// </summary>
+    public static Rect FitHorizontally(Rect design, double extraWidth, Rect actual)
+    {
+        Rect[] options =
+        [
+            design,
+            design.Offset(extraWidth, 0),
+            design.Offset(extraWidth / 2, 0),
+            design with { Width = design.Width + extraWidth },
+        ];
+        return options.MinBy(o => Math.Abs(o.X - actual.X) + Math.Abs(o.Width - actual.Width));
+    }
+
     static double WriteDiffImage(
         SKBitmap screenshot, SKBitmap design,
         IReadOnlyList<ElementPair> pairs, HashSet<DesignElement> bad,
-        double scale, double dx, double dy, double pxToDp, string path)
+        Dictionary<DesignElement, Rect> expected, double pxToDp, string path)
     {
         const int threshold = 40;
         var a = screenshot.Pixels;
@@ -150,7 +189,7 @@ public sealed class ScreenComparer(Settings settings)
                 canvas.DrawRect(ToSk(actual), bad.Contains(d) ? ko : ok);
 
                 if (bad.Contains(d))
-                    canvas.DrawRect(ToSk(d.Bounds.Scale(scale).Offset(dx, dy).Scale(1 / pxToDp)), dashed);
+                    canvas.DrawRect(ToSk(expected[d].Scale(1 / pxToDp)), dashed);
             }
         }
 
@@ -200,7 +239,7 @@ public sealed class ScreenComparer(Settings settings)
     }
 
     static string BuildReport(
-        DesignFrame design, ScreenCapture capture, double scale, double dx, double dy, IReadOnlyList<ElementPair> pairs,
+        DesignFrame design, ScreenCapture capture, double scale, double extraWidth, double dx, double dy, IReadOnlyList<ElementPair> pairs,
         IReadOnlyList<DesignElement> missing, List<ElementDiff> diffs, double mismatchRatio, string runDir)
     {
         var byMethod = pairs.GroupBy(p => p.Method).ToDictionary(g => g.Key, g => g.Count());
@@ -210,7 +249,14 @@ public sealed class ScreenComparer(Settings settings)
         sb.AppendLine($"# Comparación: {design.Name}");
         sb.AppendLine();
         sb.AppendLine($"- Dispositivo: {capture.Serial} ({capture.WidthDp:0.#} dp de ancho, densidad {capture.Density})");
-        sb.AppendLine($"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#} → escala {scale:0.###}");
+        sb.AppendLine(scale == 1
+            ? $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, comparado 1:1 en dp"
+            : $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, escalado ×{scale:0.###} al ancho del dispositivo");
+        if (Math.Abs(extraWidth) >= 0.5)
+            sb.AppendLine($"- El dispositivo es {Math.Abs(extraWidth):0.#} dp más {(extraWidth > 0 ? "ancho" : "angosto")} que el frame: " +
+                          "cada elemento se compara anclado a la izquierda, a la derecha, centrado o estirado, según cuál se ajuste mejor");
+        if (design.CachedAt is { } cachedAt)
+            sb.AppendLine($"- Diseño de la caché local (descargado el {cachedAt:yyyy-MM-dd HH:mm}); usa refresh=true si cambió en Figma");
         sb.AppendLine($"- Desplazamiento global estimado: dx={dx:0.#} dp, dy={dy:0.#} dp");
         sb.AppendLine($"- Elementos emparejados: {pairs.Count} de {design.Elements.Count} capas " +
                       $"(por AutomationId {Count(MatchMethod.Name)}, por texto {Count(MatchMethod.Text)}, por posición {Count(MatchMethod.Position)})");

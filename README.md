@@ -4,9 +4,9 @@ Servidor MCP local que compara la pantalla de una app móvil (Android) con su di
 
 ## Cómo compara
 
-1. Descarga el frame de Figma (propiedades de cada capa + PNG) con la REST API.
+1. Descarga el frame de Figma (propiedades de cada capa + PNG) con la REST API y lo guarda en una caché local: cada frame se descarga una sola vez (ver *Límites de la API de Figma*).
 2. Captura el dispositivo con `adb` (`screencap` + `uiautomator dump`).
-3. Escala el diseño al ancho lógico del dispositivo (1 unidad de Figma = 1 dp cuando coinciden).
+3. Compara 1:1 en dp (1 unidad de Figma = 1 dp). Si el dispositivo es algo más ancho o angosto que el frame (411 vs 430), cada elemento se compara anclado a la izquierda, a la derecha, centrado o estirado, según cuál se ajuste mejor. Solo si la diferencia de ancho supera ~33 % (diseño @2x, tablet) se escala el diseño.
 4. Empareja capas de Figma con elementos de la app en tres pasadas:
    1. **Nombre de capa = `AutomationId`** (sin distinguir espacios ni mayúsculas: `Login Button` ↔ `LoginButton`), solo si el nombre no se repite en el diseño.
    2. **Texto visible**: la capa "Sign up" con el botón que dice "Sign up". Es lo que funciona con kits reales, donde las capas se llaman `Text` o `Auto Layout`.
@@ -26,6 +26,14 @@ En `diff.png`: verde = coincide, naranja = difiere, punteado azul = dónde deber
 | `get_design_specs` | Medidas, colores, textos y fuentes del frame (antes de escribir el XAML) |
 | `capture_screen` | Captura + elementos de la app con su `AutomationId` |
 | `compare_screen` | Comparación completa diseño vs. app |
+
+## Límites de la API de Figma
+
+Figma limita cuántas llamadas puede hacer un token, y en algunos tipos de asiento el cupo es muy bajo: al agotarse, responde `429` con esperas de días. Por eso:
+
+- El JSON y el PNG de cada frame se guardan en `%TEMP%\figma-compare\cache` y se reutilizan en cada comparación.
+- `get_design_specs` y `compare_screen` aceptan `refresh=true` para volver a descargar un frame que cambió en Figma. Úsalo solo cuando haga falta.
+- Si Figma responde `429`, el error dice cuánto hay que esperar.
 
 ## Requisitos
 

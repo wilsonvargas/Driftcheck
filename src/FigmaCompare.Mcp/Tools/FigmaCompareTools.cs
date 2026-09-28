@@ -26,15 +26,18 @@ public sealed class FigmaCompareTools(FigmaClient figma, AdbClient adb, ScreenCo
     public async Task<string> GetDesignSpecs(
         [Description("URL del frame en Figma (Copy link to selection), debe incluir ?node-id=")] string figmaUrl,
         [Description("Ancho lógico del dispositivo destino en dp (ej. 412 para Pixel 7). Opcional.")] double? deviceWidth = null,
+        [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
         CancellationToken ct = default)
     {
-        var frame = await figma.GetFrameAsync(figmaUrl, ct);
+        var frame = await figma.GetFrameAsync(figmaUrl, refresh, ct);
         var scale = deviceWidth is > 0 ? deviceWidth.Value / frame.Bounds.Width : 1;
 
         var sb = new StringBuilder();
         sb.AppendLine($"# {frame.Name} ({frame.Bounds.Width:0.#}×{frame.Bounds.Height:0.#}, escala {scale:0.###})");
         sb.AppendLine();
-        sb.AppendLine("Usa el nombre de la capa como AutomationId en MAUI para que compare_screen pueda emparejarla.");
+        if (frame.CachedAt is { } cachedAt)
+            sb.AppendLine($"Diseño tomado de la caché local (descargado el {cachedAt:yyyy-MM-dd HH:mm}). Usa refresh=true si cambió en Figma.");
+        sb.AppendLine("compare_screen empareja por texto visible; para capas sin texto usa el nombre de la capa como AutomationId.");
         sb.AppendLine();
         sb.AppendLine("| Capa | Tipo | x | y | ancho | alto | fondo | radio | texto | fuente |");
         sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
@@ -73,7 +76,7 @@ public sealed class FigmaCompareTools(FigmaClient figma, AdbClient adb, ScreenCo
 
     [McpServerTool(Name = "compare_screen"), Description(
         "Compara la pantalla actual de la app en el dispositivo Android con un frame de Figma. " +
-        "Empareja capas de Figma con elementos de la app por nombre = AutomationId y reporta diferencias de posición, tamaño, " +
+        "Empareja capas de Figma con elementos de la app por texto visible, nombre = AutomationId o posición, y reporta diferencias de posición, tamaño, " +
         "texto y color de fondo. Genera side_by_side.png y diff.png (en diff.png: verde = coincide, naranja = difiere, " +
         "punteado azul = dónde debería estar según Figma). Abre las imágenes para una revisión visual.")]
     public async Task<string> CompareScreen(
@@ -81,10 +84,11 @@ public sealed class FigmaCompareTools(FigmaClient figma, AdbClient adb, ScreenCo
         [Description("Serial del dispositivo. Opcional: usa el primero.")] string? deviceSerial = null,
         [Description("Tolerancia de posición/tamaño en dp. Por defecto 2.")] double tolerance = 2,
         [Description("Tolerancia de color (distancia RGB 0–441). Por defecto 24.")] double colorTolerance = 24,
+        [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
         CancellationToken ct = default)
     {
-        var frameTask = figma.GetFrameAsync(figmaUrl, ct);
-        var pngTask = figma.RenderPngAsync(figmaUrl, 2, ct);
+        var frameTask = figma.GetFrameAsync(figmaUrl, refresh, ct);
+        var pngTask = figma.RenderPngAsync(figmaUrl, 2, refresh, ct);
         var captureTask = adb.CaptureAsync(deviceSerial, ct);
         await Task.WhenAll(frameTask, pngTask, captureTask);
 
