@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Pantalla "Component 113" del kit Paylo de Marvilo (CC BY 4.0):
+    https://www.figma.com/design/YwEhi9Xul2s3bPwRswwWTU/?node-id=2001-9332
+    Medidas en dp tomadas de get_design_specs (frame de 430 de ancho).
+-->
+<ContentPage
+    x:Class="PayloMaui.SignUpPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Shell.NavBarIsVisible="False"
+    BackgroundColor="#F5F5F5">
+
+    <ContentPage.Resources>
+        <Style x:Key="FieldEntry" TargetType="Entry">
+            <Setter Property="FontFamily" Value="InterRegular" />
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="TextColor" Value="#3D3744" />
+            <Setter Property="PlaceholderColor" Value="#8D839A" />
+            <Setter Property="HeightRequest" Value="24" />
+            <Setter Property="MinimumHeightRequest" Value="0" />
+            <Setter Property="BackgroundColor" Value="Transparent" />
+        </Style>
+    </ContentPage.Resources>
+
+    <ScrollView>
+        <!-- En el diseño el contenido (602 de alto) está centrado verticalmente en el frame. -->
+        <VerticalStackLayout Padding="35,0" Spacing="32" VerticalOptions="Center">
+
+            <!-- Encabezado: logo + textos (179 de alto) -->
+            <VerticalStackLayout Spacing="32">
+                <Image
+                    AutomationId="Image"
+                    Source="paylo_logo.png"
+                    WidthRequest="81"
+                    HeightRequest="81"
+                    HorizontalOptions="Center" />
+
+                <VerticalStackLayout Spacing="4">
+                    <Label
+                        Text="Nice to meet you"
+                        FontFamily="InterSemiBold"
+                        FontSize="32"
+                        TextColor="#0D001F"
+                        HeightRequest="38"
+                        HorizontalTextAlignment="Center"
+                        VerticalTextAlignment="Center" />
+                    <Label
+                        Text="Before we begin, we need some details."
+                        FontFamily="InterRegular"
+                        FontSize="17"
+                        TextColor="#564E60"
+                        HeightRequest="24"
+                        HorizontalTextAlignment="Center"
+                        VerticalTextAlignment="Center" />
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+
+            <!-- Formulario (339 de alto) -->
+            <VerticalStackLayout Spacing="24">
+
+                <Border
+                    AutomationId="Social button"
+                    BackgroundColor="White"
+                    Stroke="#EBE7F1"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 24"
+                    HeightRequest="48">
+                    <HorizontalStackLayout Spacing="12" HorizontalOptions="Center" VerticalOptions="Center">
+                        <Image Source="google_icon.png" WidthRequest="20" HeightRequest="20" />
+                        <Label
+                            Text="Sign up with Google"
+                            FontFamily="InterSemiBold"
+                            FontSize="17"
+                            TextColor="#E6E6E6"
+                            HeightRequest="24"
+                            VerticalTextAlignment="Center" />
+                    </HorizontalStackLayout>
+                </Border>
+
+                <Grid ColumnDefinitions="*,80,*" HeightRequest="24">
+                    <BoxView Color="#C8BED4" HeightRequest="1" VerticalOptions="Center" />
+                    <Label
+                        Grid.Column="1"
+                        Text="or"
+                        FontFamily="InterRegular"
+                        FontSize="14"
+                        TextColor="#1B1B1B"
+                        HorizontalTextAlignment="Center"
+                        VerticalTextAlignment="Center" />
+                    <BoxView Grid.Column="2" Color="#C8BED4" HeightRequest="1" VerticalOptions="Center" />
+                </Grid>
+
+                <VerticalStackLayout Spacing="20">
+                    <!-- Email con error: campo 46 + 4 + mensaje 16 + 8 = 74 -->
+                    <VerticalStackLayout Spacing="4">
+                        <Border
+                            BackgroundColor="White"
+                            Stroke="#FF8E56"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 8"
+                            HeightRequest="46"
+                            Padding="14,4">
+                            <VerticalStackLayout Spacing="-2">
+                                <Label
+                                    Text="Enter your email"
+                                    FontFamily="InterRegular"
+                                    FontSize="12"
+                                    TextColor="#FF8E56"
+                                    HeightRequest="16" />
+                                <Entry
+                                    x:Name="EmailEntry"
+                                    Style="{StaticResource FieldEntry}"
+                                    Text="Name@marvilo.net"
+                                    Keyboard="Email" />
+                            </VerticalStackLayout>
+                        </Border>
+                        <Label
+                            Text="Error message"
+                            FontFamily="InterRegular"
+                            FontSize="12"
+                            TextColor="#FF8E56"
+                            HeightRequest="16"
+                            Margin="14,0,0,8" />
+                    </VerticalStackLayout>
+
+                    <Border
+                        BackgroundColor="White"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 8"
+                        HeightRequest="46"
+                        Padding="14,0">
+                        <Border.Shadow>
+                            <Shadow Brush="#1A000000" Offset="0,2" Radius="8" />
+                        </Border.Shadow>
+                        <Entry
+                            x:Name="PasswordEntry"
+                            Style="{StaticResource FieldEntry}"
+                            Placeholder="Enter your password"
+                            IsPassword="True"
+                            VerticalOptions="Center" />
+                    </Border>
+                </VerticalStackLayout>
+
+                <!-- Estado "Disabled" del kit: el mismo morado al 30 % -->
+                <Button
+                    Text="Sign up"
+                    FontFamily="InterSemiBold"
+                    FontSize="20"
+                    TextColor="White"
+                    BackgroundColor="#9E56FF"
+                    CornerRadius="28"
+                    HeightRequest="55"
+                    Padding="0"
+                    Opacity="0.3"
+                    IsEnabled="False">
+                    <VisualStateManager.VisualStateGroups>
+                        <VisualStateGroupList>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="Disabled">
+                                    <VisualState.Setters>
+                                        <Setter Property="TextColor" Value="White" />
+                                        <Setter Property="BackgroundColor" Value="#9E56FF" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateGroupList>
+                    </VisualStateManager.VisualStateGroups>
+                </Button>
+            </VerticalStackLayout>
+
+            <!-- Pie -->
+            <HorizontalStackLayout Spacing="4" HorizontalOptions="Center" HeightRequest="20">
+                <Label
+                    Text="Already have an account?"
+                    FontFamily="InterRegular"
+                    FontSize="14"
+                    TextColor="#564E60"
+                    VerticalTextAlignment="Center" />
+                <Label
+                    Text="Log in"
+                    FontFamily="InterSemiBold"
+                    FontSize="14"
+                    TextColor="#9E56FF"
+                    VerticalTextAlignment="Center" />
+            </HorizontalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

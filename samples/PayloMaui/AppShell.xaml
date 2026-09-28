@@ -7,8 +7,8 @@
     Title="PayloMaui">
 
     <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+        Title="Sign up"
+        ContentTemplate="{DataTemplate local:SignUpPage}"
+        Route="SignUpPage" />
 
 </Shell>
