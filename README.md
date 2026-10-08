@@ -5,6 +5,7 @@ Servidor MCP local que compara la pantalla de una app móvil (Android) con su di
 ## Cómo compara
 
 1. Descarga el frame de Figma (propiedades de cada capa + PNG) con la REST API y lo guarda en una caché local: cada frame se descarga una sola vez (ver *Límites de la API de Figma*).
+   Las cajas del JSON se recalculan con las reglas de auto layout de cada frame (dirección, padding, separación, alineación, fijo / hug / fill, min/max), sin contar los hijos ocultos: dentro de instancias de componentes, Figma puede devolver cajas desactualizadas (un texto en x=129 que el render muestra en x=49 porque dos íconos ocultos "seguían ocupando lugar").
 2. Captura el dispositivo con `adb` (`screencap` + `uiautomator dump`).
 3. Compara 1:1 en dp (1 unidad de Figma = 1 dp). Si el dispositivo es algo más ancho o angosto que el frame (411 vs 430), cada elemento se compara anclado a la izquierda, a la derecha, centrado o estirado, según cuál se ajuste mejor. Solo si la diferencia de ancho supera ~33 % (diseño @2x, tablet) se escala el diseño.
 4. Empareja capas de Figma con elementos de la app en tres pasadas:
@@ -13,8 +14,9 @@ Servidor MCP local que compara la pantalla de una app móvil (Android) con su di
    3. **Posición**: una capa de texto sobre un elemento con otro texto se empareja igual, para reportar el texto distinto.
 
    Los ids de Android (`android:id/content`, etc.) y del marco de AppCompat (`action_bar_root`, etc.) se ignoran.
-5. Estima el desplazamiento global (barra de estado, notch) con la mediana y reporta diferencias de posición, tamaño, texto, color de fondo y color de los textos (medido en el render del diseño y en la captura, así cuenta la opacidad).
-6. Genera `side_by_side.png`, `diff.png` y `report.md`.
+5. En los textos compara las letras visibles, medidas en el render del diseño y en la captura, en vez de las cajas: la capa de Figma se ajusta al texto, pero en la app el texto suele estar dentro de una vista más ancha (un `TextView` de toda la fila, un botón). En el ancho de las letras tolera un 2.5 % (la misma fuente se dibuja un poco distinta en Figma y en Android); una fuente distinta se sigue reportando.
+6. Estima el desplazamiento global (barra de estado, notch) con la mediana y reporta diferencias de posición, tamaño, texto, color de fondo y color de los textos (medido igual que las letras, así cuenta la opacidad).
+7. Genera `side_by_side.png`, `diff.png` y `report.md`.
 
 En `diff.png`: verde = coincide, naranja = difiere, punteado azul = dónde debería estar según Figma, magenta = píxeles distintos.
 

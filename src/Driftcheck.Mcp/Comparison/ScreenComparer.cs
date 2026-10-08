@@ -17,6 +17,8 @@ public sealed record ComparisonResult(
 
 public sealed class ScreenComparer(Settings settings)
 {
+    const double TextWidthTolerance = 0.025;
+
     public ComparisonResult Compare(
         DesignFrame design,
         string designPngPath,
@@ -38,40 +40,72 @@ public sealed class ScreenComparer(Settings settings)
         var extraWidth = deviceWidthDp - design.Bounds.Width * scale;
 
         var match = ElementMatcher.Match(design.Elements, capture.Elements, scale);
-        var (pairs, missing, dx, dy) = (match.Pairs, match.Missing, match.Dx, match.Dy);
+        var (pairs, missing) = (match.Pairs, match.Missing);
+
+        var pixels = screenshot.Pixels;
+        var designPixels = designPng.Pixels;
+        var designPxPerUnit = designPng.Width / design.Bounds.Width;
+
+        // En un texto se comparan las letras visibles, no las cajas: la capa de Figma se ajusta al texto,
+        // pero en la app el texto suele estar dentro de una vista más ancha (un TextView que ocupa toda la
+        // fila, un botón). Si no se puede medir la letra (poco contraste), se comparan las cajas.
+        var measured = pairs.Select(pair =>
+        {
+            var (d, s, _) = pair;
+            if (d.Type != "TEXT") return new Measured(d, s, d.Bounds, s.Bounds, null, null);
+
+            var designInk = MeasureInk(designPixels, designPng.Width, designPng.Height, TextSearchArea(d).Scale(designPxPerUnit));
+            var appInk = MeasureInk(pixels, screenshot.Width, screenshot.Height, s.Bounds.Scale(1 / pxToDp));
+            return designInk is not null && appInk is not null
+                ? new Measured(d, s, designInk.Bounds.Scale(1 / designPxPerUnit), appInk.Bounds.Scale(pxToDp), designInk, appInk)
+                : new Measured(d, s, d.Bounds, s.Bounds, designInk, appInk);
+        }).ToList();
+
+        // Desplazamiento global (barra de estado, notch) con las mismas cajas que se comparan: la de un
+        // TextView que ocupa toda la fila no dice dónde está el texto.
+        var (dx, dy) = measured.Count > 0
+            ? (ElementMatcher.Median(measured.Select(m => m.Actual.X - m.DesignBox.X * scale)),
+               ElementMatcher.Median(measured.Select(m => m.Actual.Y - m.DesignBox.Y * scale)))
+            : (match.Dx, match.Dy);
 
         // Con anchos distintos, la mediana de dx mezcla elementos anclados a la izquierda con centrados
         // y no significa nada; el ajuste horizontal lo hace FitHorizontally por elemento.
         if (Math.Abs(extraWidth) > tolerance) dx = 0;
 
         var expectedBounds = new Dictionary<DesignElement, Rect>(ReferenceEqualityComparer.Instance);
+        var actualBounds = new Dictionary<DesignElement, Rect>(ReferenceEqualityComparer.Instance);
 
         var diffs = new List<ElementDiff>();
         var badElements = new HashSet<DesignElement>(ReferenceEqualityComparer.Instance);
-        var pixels = screenshot.Pixels;
-        var designPixels = designPng.Pixels;
-        var designPxPerUnit = designPng.Width / design.Bounds.Width;
 
-        foreach (var (d, s, _) in pairs)
+        foreach (var (d, s, designBox, actual, designInk, appInk) in measured)
         {
-            var actual = s.Bounds;
-            var expected = FitHorizontally(d.Bounds.Scale(scale).Offset(dx, dy), extraWidth, actual);
+            if (designInk is not null && appInk is not null) actualBounds[d] = actual;
+
+            var expected = FitHorizontally(designBox.Scale(scale).Offset(dx, dy), extraWidth, actual);
             expectedBounds[d] = expected;
             var label = Label(d);
 
-            void Check(string prop, double exp, double act)
+            void Check(string prop, double exp, double act, double allowed)
             {
-                if (Math.Abs(exp - act) > tolerance)
+                if (Math.Abs(exp - act) > allowed)
                 {
                     diffs.Add(new ElementDiff(label, prop, F(exp), F(act)));
                     badElements.Add(d);
                 }
             }
 
-            Check("x", expected.X, actual.X);
-            Check("y", expected.Y, actual.Y);
-            Check("width", expected.Width, actual.Width);
-            Check("height", expected.Height, actual.Height);
+            // El ancho de un mismo texto varía un poco entre Figma y Android (versión de la fuente, redondeo
+            // del tamaño a píxeles): en las letras se tolera hasta un 2.5 %. Una fuente distinta (Lato en vez
+            // de Inter) cambia el ancho bastante más y se sigue reportando.
+            var widthTolerance = designInk is not null && appInk is not null
+                ? Math.Max(tolerance, expected.Width * TextWidthTolerance)
+                : tolerance;
+
+            Check("x", expected.X, actual.X, tolerance);
+            Check("y", expected.Y, actual.Y, tolerance);
+            Check("width", expected.Width, actual.Width, widthTolerance);
+            Check("height", expected.Height, actual.Height, tolerance);
 
             var screenText = ElementMatcher.ScreenText(s);
             if (d.Text is not null && screenText is not null && !string.Equals(d.Text.Trim(), screenText.Trim(), StringComparison.Ordinal))
@@ -94,15 +128,10 @@ public sealed class ScreenComparer(Settings settings)
 
             // El color de la letra se mide igual en el PNG del diseño y en la captura, no se toma del fill:
             // así cuenta la opacidad de la capa o de sus padres (un botón deshabilitado al 30 %).
-            if (d.Type == "TEXT")
+            if (designInk is not null && appInk is not null && appInk.Color.DistanceTo(designInk.Color) > colorTolerance)
             {
-                var designInk = SampleInkColor(designPixels, designPng.Width, designPng.Height, d.Bounds.Scale(designPxPerUnit));
-                var appInk = SampleInkColor(pixels, screenshot.Width, screenshot.Height, actual.Scale(1 / pxToDp));
-                if (designInk is { } di && appInk is { } ai && ai.DistanceTo(di) > colorTolerance)
-                {
-                    diffs.Add(new ElementDiff(label, "text color", di.Hex, ai.Hex));
-                    badElements.Add(d);
-                }
+                diffs.Add(new ElementDiff(label, "text color", designInk.Color.Hex, appInk.Color.Hex));
+                badElements.Add(d);
             }
         }
 
@@ -122,7 +151,7 @@ public sealed class ScreenComparer(Settings settings)
             canvas.DrawImage(image, SKRect.Create(destLeft, dyPx, destWidth, destHeight), new SKSamplingOptions(SKFilterMode.Linear));
         }
 
-        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, pxToDp,
+        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, actualBounds, pxToDp,
             Path.Combine(runDir, "diff.png"));
         WriteSideBySide(alignedDesign, screenshot, Path.Combine(runDir, "side_by_side.png"));
 
@@ -167,7 +196,7 @@ public sealed class ScreenComparer(Settings settings)
     static double WriteDiffImage(
         SKBitmap screenshot, SKBitmap design,
         IReadOnlyList<ElementPair> pairs, HashSet<DesignElement> bad,
-        Dictionary<DesignElement, Rect> expected, double pxToDp, string path)
+        Dictionary<DesignElement, Rect> expected, Dictionary<DesignElement, Rect> actualOverrides, double pxToDp, string path)
     {
         const int threshold = 40;
         var a = screenshot.Pixels;
@@ -200,7 +229,7 @@ public sealed class ScreenComparer(Settings settings)
         {
             foreach (var (d, s, _) in pairs)
             {
-                var actual = s.Bounds.Scale(1 / pxToDp);
+                var actual = actualOverrides.GetValueOrDefault(d, s.Bounds).Scale(1 / pxToDp);
                 canvas.DrawRect(ToSk(actual), bad.Contains(d) ? ko : ok);
 
                 if (bad.Contains(d))
@@ -231,11 +260,33 @@ public sealed class ScreenComparer(Settings settings)
     }
 
     /// <summary>
-    /// Color de la letra dentro de un texto: el fondo es el color dominante y la letra, los píxeles más
-    /// alejados de él (los del borde de cada glifo son mezclas con el fondo por el antialiasing).
+    /// Zona del PNG del diseño donde buscar las letras de un texto. La caja de una capa de texto puede ser
+    /// más baja que la letra (un "Sign up" de 20 con interlineado de 15), así que se amplía en vertical a
+    /// 1.4 veces el tamaño de fuente; en horizontal la caja ya cubre el ancho de las letras.
+    /// </summary>
+    static Rect TextSearchArea(DesignElement d)
+    {
+        const double HorizontalMargin = 1;
+        var height = Math.Max(d.Bounds.Height, (d.FontSize ?? 0) * 1.4);
+        return new Rect(
+            d.Bounds.X - HorizontalMargin,
+            d.Bounds.Y + d.Bounds.Height / 2 - height / 2,
+            d.Bounds.Width + 2 * HorizontalMargin,
+            height);
+    }
+
+    sealed record InkSample(Rect Bounds, Rgb Color);
+
+    /// <summary>Pareja diseño/app con las cajas que se comparan (las letras, en los textos medibles).</summary>
+    sealed record Measured(DesignElement Design, ScreenElement Screen, Rect DesignBox, Rect Actual, InkSample? DesignInk, InkSample? AppInk);
+
+    /// <summary>
+    /// Letras dentro de un texto: el fondo es el color dominante y la letra, los píxeles que se alejan de él.
+    /// Devuelve la caja de esos píxeles (en px de la imagen) y el color de la letra, tomado de los más alejados
+    /// (los del borde de cada glifo son mezclas con el fondo por el antialiasing).
     /// Null si casi no hay píxeles distintos del fondo (texto vacío o de muy poco contraste).
     /// </summary>
-    static Rgb? SampleInkColor(SKColor[] pixels, int width, int height, Rect px)
+    static InkSample? MeasureInk(SKColor[] pixels, int width, int height, Rect px)
     {
         const double MinContrast = 32;
         const int MinInkPixels = 4;
@@ -245,22 +296,79 @@ public sealed class ScreenComparer(Settings settings)
         int x1 = Math.Clamp((int)px.X, 0, width - 1), x2 = Math.Clamp((int)(px.X + px.Width), 0, width - 1);
         int y1 = Math.Clamp((int)px.Y, 0, height - 1), y2 = Math.Clamp((int)(px.Y + px.Height), 0, height - 1);
 
-        var ink = new List<(double Distance, SKColor Color)>();
+        var ink = new List<(int X, int Y, double Distance, SKColor Color)>();
         for (var y = y1; y <= y2; y++)
         for (var x = x1; x <= x2; x++)
         {
             var c = pixels[y * width + x];
             var distance = new Rgb(c.Red, c.Green, c.Blue).DistanceTo(background);
-            if (distance > MinContrast) ink.Add((distance, c));
+            if (distance > MinContrast) ink.Add((x, y, distance, c));
         }
+
+        ink = DropSolidEdges(ink, x1, y1, x2, y2);
         if (ink.Count < MinInkPixels) return null;
+
+        ink = KeepTextColumns(ink, x1, x2);
 
         // El 20 % más alejado del fondo: el centro de los trazos, donde el color es puro.
         var core = ink.OrderByDescending(p => p.Distance).Take(Math.Max(MinInkPixels, ink.Count / 5)).ToList();
-        return new Rgb(
+        var color = new Rgb(
             (byte)core.Average(p => p.Color.Red),
             (byte)core.Average(p => p.Color.Green),
             (byte)core.Average(p => p.Color.Blue));
+
+        int minX = ink.Min(p => p.X), maxX = ink.Max(p => p.X), minY = ink.Min(p => p.Y), maxY = ink.Max(p => p.Y);
+        return new InkSample(new Rect(minX, minY, maxX - minX + 1, maxY - minY + 1), color);
+    }
+
+    /// <summary>
+    /// Quita las filas y columnas del borde de la región que son casi enteras de "tinta": son una línea
+    /// sólida, no texto. Pasa cuando, al redondear los límites de una vista, entra una fila del fondo de
+    /// la página (y deja unidas todas las columnas en un solo bloque).
+    /// </summary>
+    static List<(int X, int Y, double Distance, SKColor Color)> DropSolidEdges(
+        List<(int X, int Y, double Distance, SKColor Color)> ink, int x1, int y1, int x2, int y2)
+    {
+        const double SolidShare = 0.9;
+        var rows = ink.GroupBy(p => p.Y).ToDictionary(g => g.Key, g => g.Count());
+        var cols = ink.GroupBy(p => p.X).ToDictionary(g => g.Key, g => g.Count());
+        bool SolidRow(int y) => rows.GetValueOrDefault(y) >= SolidShare * (x2 - x1 + 1);
+        bool SolidCol(int x) => cols.GetValueOrDefault(x) >= SolidShare * (y2 - y1 + 1);
+
+        int top = y1, bottom = y2, left = x1, right = x2;
+        while (top < bottom && SolidRow(top)) top++;
+        while (bottom > top && SolidRow(bottom)) bottom--;
+        while (left < right && SolidCol(left)) left++;
+        while (right > left && SolidCol(right)) right--;
+
+        return ink.Where(p => p.Y >= top && p.Y <= bottom && p.X >= left && p.X <= right).ToList();
+    }
+
+    /// <summary>
+    /// Separa la tinta en bloques de columnas (un espacio entre palabras no los corta; uno mayor que
+    /// 0.6 veces el alto de la tinta, sí) y se queda con el texto. Lo que toca el borde de la vista suele
+    /// ser de otra cosa: las esquinas redondeadas de un botón dejan ver el fondo de la página, y las líneas
+    /// a los lados de un "or" llegan hasta su borde. Si todo toca el borde, se queda con el bloque mayor.
+    /// </summary>
+    static List<(int X, int Y, double Distance, SKColor Color)> KeepTextColumns(
+        List<(int X, int Y, double Distance, SKColor Color)> ink, int left, int right)
+    {
+        var maxGap = Math.Max(2, 0.6 * (ink.Max(p => p.Y) - ink.Min(p => p.Y) + 1));
+        var columns = ink.GroupBy(p => p.X).OrderBy(g => g.Key).ToList();
+
+        var blocks = new List<List<IGrouping<int, (int X, int Y, double Distance, SKColor Color)>>> { new() { columns[0] } };
+        foreach (var column in columns.Skip(1))
+        {
+            if (column.Key - blocks[^1][^1].Key > maxGap) blocks.Add([]);
+            blocks[^1].Add(column);
+        }
+        if (blocks.Count == 1) return ink;
+
+        bool TouchesEdge(List<IGrouping<int, (int X, int Y, double Distance, SKColor Color)>> b) =>
+            b[0].Key <= left || b[^1].Key >= right;
+        var candidates = blocks.Where(b => !TouchesEdge(b)).ToList();
+        var best = (candidates.Count > 0 ? candidates : blocks).MaxBy(b => b.Sum(c => c.Count()))!;
+        return best.SelectMany(c => c).ToList();
     }
 
     /// <summary>Color más frecuente dentro del elemento (ignorando bordes), cuantizado para absorber antialiasing.</summary>
@@ -306,6 +414,8 @@ public sealed class ScreenComparer(Settings settings)
         if (design.CachedAt is { } cachedAt)
             sb.AppendLine($"- Diseño de la caché local (descargado el {cachedAt:yyyy-MM-dd HH:mm}); usa refresh=true si cambió en Figma");
         sb.AppendLine($"- Desplazamiento global estimado: dx={dx:0.#} dp, dy={dy:0.#} dp");
+        sb.AppendLine("- Los textos se comparan por sus letras visibles, medidas en el render del diseño y en la captura " +
+                      "(no por las cajas: en la app suelen estar dentro de vistas más anchas). En el ancho se tolera un 2.5 %.");
         sb.AppendLine($"- Elementos emparejados: {pairs.Count} de {design.Elements.Count} capas " +
                       $"(por AutomationId {Count(MatchMethod.Name)}, por texto {Count(MatchMethod.Text)}, por posición {Count(MatchMethod.Position)})");
         sb.AppendLine($"- Píxeles distintos: {mismatchRatio:P1}");

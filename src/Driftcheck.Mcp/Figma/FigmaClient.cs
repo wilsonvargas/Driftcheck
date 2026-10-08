@@ -68,10 +68,13 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
         var node = doc.RootElement.GetProperty("nodes").GetProperty(nodeId).GetProperty("document");
         var frameBounds = ReadBox(node) ?? throw new InvalidOperationException("El nodo no tiene absoluteBoundingBox.");
 
+        // Las cajas del JSON pueden estar desactualizadas dentro de instancias; ver AutoLayout.
+        var layout = AutoLayout.Reflow(node);
+
         var elements = new List<DesignElement>();
         if (node.TryGetProperty("children", out var children))
             foreach (var child in children.EnumerateArray())
-                Collect(child, frameBounds, elements);
+                Collect(child, frameBounds, layout, elements);
 
         return new DesignFrame(fileKey, nodeId, node.GetProperty("name").GetString() ?? nodeId,
             frameBounds with { X = 0, Y = 0 }, elements, cachedAt);
@@ -130,14 +133,16 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
     static string FormatWait(TimeSpan t) =>
         t.TotalDays >= 1 ? $"{t.TotalDays:0.#} días" : t.TotalHours >= 1 ? $"{t.TotalHours:0.#} horas" : $"{Math.Ceiling(t.TotalMinutes)} minutos";
 
-    static void Collect(JsonElement node, Rect frame, List<DesignElement> output)
+    static void Collect(JsonElement node, Rect frame, Dictionary<string, Rect> layout, List<DesignElement> output)
     {
         if (node.TryGetProperty("visible", out var visible) && !visible.GetBoolean())
             return;
 
         var name = node.GetProperty("name").GetString() ?? "";
         var type = node.GetProperty("type").GetString() ?? "";
-        var box = ReadBox(node);
+        var box = node.TryGetProperty("id", out var id) && layout.TryGetValue(id.GetString() ?? "", out var laidOut)
+            ? laidOut
+            : ReadBox(node);
 
         // Solo nos interesan las capas nombradas a propósito: los nombres automáticos
         // de Figma ("Frame 12", "Rectangle 3", "Vector") no se pueden emparejar con AutomationId.
@@ -168,10 +173,10 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
 
         if (node.TryGetProperty("children", out var children))
             foreach (var child in children.EnumerateArray())
-                Collect(child, frame, output);
+                Collect(child, frame, layout, output);
     }
 
-    static Rect? ReadBox(JsonElement node)
+    internal static Rect? ReadBox(JsonElement node)
     {
         if (!node.TryGetProperty("absoluteBoundingBox", out var box) || box.ValueKind != JsonValueKind.Object)
             return null;
