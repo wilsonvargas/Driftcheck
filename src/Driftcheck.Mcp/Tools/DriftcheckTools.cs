@@ -9,8 +9,22 @@ using ModelContextProtocol.Server;
 namespace Driftcheck.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class DriftcheckTools(FigmaClient figma, AdbClient adb, ScreenComparer comparer)
+public sealed class DriftcheckTools(FigmaClient figma, AdbClient adb, ScreenComparer comparer, Settings settings)
 {
+    [McpServerTool(Name = "import_design"), Description(
+        "Importa un archivo .driftcheck.json exportado con el plugin de Driftcheck en Figma, para comparar sin la API " +
+        "de Figma (sin token o sin cupo). Los que están en la carpeta Descargas se usan solos; esto es para los que " +
+        "quedaron en otra carpeta. Después se compara con el link del frame, como siempre.")]
+    public string ImportDesign(
+        [Description("Ruta del archivo .driftcheck.json")] string path)
+    {
+        var export = new DesignExports(settings).Import(path);
+        var file = export.FileKey is null ? "" : $" del archivo {export.FileKey}";
+        return $"Importado «{export.NodeName}» (node-id={export.NodeId.Replace(':', '-')}){file}, exportado el " +
+               $"{export.ExportedAtUtc:yyyy-MM-dd HH:mm} UTC. Usa get_design_specs o compare_screen con el link de ese " +
+               "frame (Copy link to selection en Figma).";
+    }
+
     [McpServerTool(Name = "list_devices"), Description("Lista los dispositivos y emuladores Android conectados por adb.")]
     public async Task<string> ListDevices(CancellationToken ct)
     {

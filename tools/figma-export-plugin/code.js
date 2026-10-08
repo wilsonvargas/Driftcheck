@@ -1,24 +1,54 @@
-// Exporta el frame seleccionado con el mismo formato que GET /v1/files/{key}/nodes?ids={id},
-// para dejarlo en la caché de Driftcheck sin gastar cupo de la REST API.
-figma.showUI(__html__, { width: 480, height: 420 });
+// Exporta el frame seleccionado para Driftcheck sin usar la REST API de Figma (no gasta cupo ni necesita token):
+// un archivo .driftcheck.json con el JSON del frame (mismo formato que GET /v1/files/{key}/nodes) y su render a 2x.
+// El servidor de Driftcheck lo encuentra solo en la carpeta Descargas.
+figma.showUI(__html__, { width: 360, height: 220 });
+
+const FORMAT_VERSION = 1;
 
 async function exportSelection() {
-  const node = figma.currentPage.selection[0];
-  if (!node) {
-    figma.ui.postMessage({ error: "Selecciona un frame y vuelve a ejecutar el plugin." });
+  const selection = figma.currentPage.selection;
+  if (selection.length !== 1) {
+    figma.ui.postMessage({ error: "Selecciona un solo frame (la pantalla que vas a comparar)." });
     return;
   }
 
+  const node = selection[0];
+  figma.ui.postMessage({ busy: `Exportando «${node.name}»…` });
+
   const rest = await node.exportAsync({ format: "JSON_REST_V1" });
-  // Según la versión, el resultado ya trae { document, components, ... } o es directamente el nodo.
-  const entry = rest && rest.document ? rest : { document: rest };
-  const json = JSON.stringify({ name: figma.root.name, nodes: { [node.id]: entry } });
+  const png = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 2 } });
 
-  // figma.fileKey solo está disponible en plugins privados o en desarrollo.
-  const fileKey = figma.fileKey || "FILEKEY";
-  const fileName = `${fileKey}_${node.id.replace(/:/g, "-")}.json`;
+  const data = {
+    driftcheck: FORMAT_VERSION,
+    // Figma solo da la clave del archivo a plugins privados o en desarrollo; publicado en la Community llega
+    // vacía, y Driftcheck reconoce el frame por su id.
+    fileKey: figma.fileKey || null,
+    fileName: figma.root.name,
+    nodeId: node.id,
+    nodeName: node.name,
+    exportedAt: new Date().toISOString(),
+    // Según la versión, el resultado ya trae { document, components, ... } o es directamente el nodo.
+    rest: rest && rest.document ? rest : { document: rest },
+    png2x: figma.base64Encode(png),
+  };
 
-  figma.ui.postMessage({ json, fileName, nodeName: node.name, nodeId: node.id });
+  figma.ui.postMessage({
+    json: JSON.stringify(data),
+    fileName: `${safeFileName(node.name)}.driftcheck.json`,
+    nodeName: node.name,
+  });
 }
 
-exportSelection().catch((e) => figma.ui.postMessage({ error: String(e) }));
+function safeFileName(name) {
+  return name.replace(/[\\/:*?"<>|]+/g, "-").trim() || "frame";
+}
+
+figma.ui.onmessage = (message) => {
+  if (message.type === "export") run();
+};
+
+function run() {
+  exportSelection().catch((e) => figma.ui.postMessage({ error: String(e) }));
+}
+
+run();
