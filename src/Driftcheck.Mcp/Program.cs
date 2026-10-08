@@ -1,7 +1,9 @@
 using Driftcheck.Mcp;
 using Driftcheck.Mcp.Android;
 using Driftcheck.Mcp.Comparison;
+using Driftcheck.Mcp.Devices;
 using Driftcheck.Mcp.Figma;
+using Driftcheck.Mcp.Ios;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,7 +17,9 @@ builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
 builder.Services.AddSingleton<Settings>();
 builder.Services.AddHttpClient<FigmaClient>();
-builder.Services.AddSingleton<AdbClient>();
+builder.Services.AddSingleton<IDeviceClient, AdbClient>();
+builder.Services.AddSingleton<IDeviceClient, SimulatorClient>();
+builder.Services.AddSingleton<DeviceRegistry>();
 builder.Services.AddSingleton<ScreenComparer>();
 
 builder.Services

@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using Driftcheck.Mcp.Android;
+using Driftcheck.Mcp.Devices;
 using Driftcheck.Mcp.Figma;
 using SkiaSharp;
 
@@ -31,7 +31,7 @@ public sealed partial class ScreenComparer(Settings settings)
         using var designPng = SKBitmap.Decode(designPngPath)
             ?? throw new InvalidOperationException("No pude leer el PNG de Figma.");
 
-        var pxToDp = 160.0 / capture.Density;
+        var pxToDp = capture.PxToUnit;
         var deviceWidthDp = screenshot.Width * pxToDp;
         var scale = ChooseScale(design.Bounds.Width, deviceWidthDp);
 
@@ -491,16 +491,17 @@ public sealed partial class ScreenComparer(Settings settings)
         var sb = new StringBuilder();
         sb.AppendLine($"# Comparación: {design.Name}");
         sb.AppendLine();
-        sb.AppendLine($"- Dispositivo: {capture.Serial} ({capture.WidthDp:0.#} dp de ancho, densidad {capture.Density})");
+        var u = capture.Unit;
+        sb.AppendLine($"- Dispositivo: {capture.Serial} ({capture.WidthUnits:0.#} {u} de ancho, {capture.PixelsPerUnit:0.##} px por {u})");
         sb.AppendLine(scale == 1
-            ? $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, comparado 1:1 en dp"
+            ? $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, comparado 1:1 en {u}"
             : $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, escalado ×{scale:0.###} al ancho del dispositivo");
         if (Math.Abs(extraWidth) >= 0.5)
-            sb.AppendLine($"- El dispositivo es {Math.Abs(extraWidth):0.#} dp más {(extraWidth > 0 ? "ancho" : "angosto")} que el frame: " +
+            sb.AppendLine($"- El dispositivo es {Math.Abs(extraWidth):0.#} {u} más {(extraWidth > 0 ? "ancho" : "angosto")} que el frame: " +
                           "cada elemento se compara anclado a la izquierda, a la derecha, centrado o estirado, según cuál se ajuste mejor");
         if (design.CachedAt is { } cachedAt)
             sb.AppendLine($"- Diseño de la caché local (descargado el {cachedAt:yyyy-MM-dd HH:mm}); usa refresh=true si cambió en Figma");
-        sb.AppendLine($"- Desplazamiento global estimado: dx={dx:0.#} dp, dy={dy:0.#} dp");
+        sb.AppendLine($"- Desplazamiento global estimado: dx={dx:0.#} {u}, dy={dy:0.#} {u}");
         sb.AppendLine("- Los textos se comparan por sus letras visibles, medidas en el render del diseño y en la captura " +
                       "(no por las cajas: en la app suelen estar dentro de vistas más anchas). En el ancho se tolera un 2.5 %.");
         sb.AppendLine($"- Elementos emparejados: {pairs.Count} de {design.Elements.Count} capas " +

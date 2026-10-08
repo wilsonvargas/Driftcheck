@@ -1,5 +1,6 @@
 using Driftcheck.Mcp;
 using Driftcheck.Mcp.Android;
+using Driftcheck.Mcp.Devices;
 using Driftcheck.Mcp.Comparison;
 using Driftcheck.Mcp.Figma;
 

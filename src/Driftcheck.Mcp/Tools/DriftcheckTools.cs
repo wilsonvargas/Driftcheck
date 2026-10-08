@@ -1,15 +1,15 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
-using Driftcheck.Mcp.Android;
 using Driftcheck.Mcp.Comparison;
+using Driftcheck.Mcp.Devices;
 using Driftcheck.Mcp.Figma;
 using ModelContextProtocol.Server;
 
 namespace Driftcheck.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class DriftcheckTools(FigmaClient figma, AdbClient adb, ScreenComparer comparer, Settings settings)
+public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, ScreenComparer comparer, Settings settings)
 {
     [McpServerTool(Name = "import_design"), Description(
         "Importa un archivo .driftcheck.json exportado con el plugin de Driftcheck en Figma, para comparar sin la API " +
@@ -25,21 +25,27 @@ public sealed class DriftcheckTools(FigmaClient figma, AdbClient adb, ScreenComp
                "frame (Copy link to selection en Figma).";
     }
 
-    [McpServerTool(Name = "list_devices"), Description("Lista los dispositivos y emuladores Android conectados por adb.")]
+    [McpServerTool(Name = "list_devices"), Description(
+        "Lista los dispositivos y emuladores Android conectados por adb y, en macOS, los simuladores de iOS encendidos.")]
     public async Task<string> ListDevices(CancellationToken ct)
     {
-        var devices = await adb.ListDevicesAsync(ct);
-        return devices.Count == 0
-            ? "No hay dispositivos conectados. Inicia el emulador o conecta un teléfono con depuración USB."
-            : string.Join('\n', devices);
+        var listing = await devices.ListAsync(ct);
+        var sb = new StringBuilder();
+        if (listing.Devices.Count == 0)
+            sb.AppendLine("No hay dispositivos conectados. Inicia un emulador de Android o un simulador de iOS, o conecta un teléfono con depuración USB.");
+        foreach (var (_, d) in listing.Devices)
+            sb.AppendLine($"{d.Serial} — {d.Description}");
+        foreach (var error in listing.Errors)
+            sb.AppendLine($"(No se pudo consultar {error})");
+        return sb.ToString().TrimEnd();
     }
 
     [McpServerTool(Name = "get_design_specs"), Description(
         "Devuelve las medidas del frame de Figma: posición, tamaño, colores, textos y tipografía de cada capa con nombre. " +
-        "Úsalo ANTES de escribir el XAML de una pantalla. Si se pasa deviceWidth, los valores se escalan a ese ancho en dp.")]
+        "Úsalo ANTES de escribir el XAML de una pantalla. Si se pasa deviceWidth, los valores se escalan a ese ancho en dp o pt.")]
     public async Task<string> GetDesignSpecs(
         [Description("URL del frame en Figma (Copy link to selection), debe incluir ?node-id=")] string figmaUrl,
-        [Description("Ancho lógico del dispositivo destino en dp (ej. 412 para Pixel 7). Opcional.")] double? deviceWidth = null,
+        [Description("Ancho lógico del dispositivo destino en dp o pt (ej. 412 para Pixel 7, 402 para iPhone 17). Opcional.")] double? deviceWidth = null,
         [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
         CancellationToken ct = default)
     {
@@ -69,16 +75,18 @@ public sealed class DriftcheckTools(FigmaClient figma, AdbClient adb, ScreenComp
     }
 
     [McpServerTool(Name = "capture_screen"), Description(
-        "Toma una captura del dispositivo Android y lista los elementos visibles con su AutomationId (resource-id), texto y bounds en dp.")]
+        "Toma una captura del dispositivo (Android o simulador de iOS) y lista los elementos visibles con su AutomationId " +
+        "(resource-id en Android, accessibilityIdentifier en iOS), texto y bounds en dp o pt. En iOS tarda unos segundos más: " +
+        "lee el árbol de accesibilidad con un UI test, que se compila la primera vez.")]
     public async Task<string> CaptureScreen(
-        [Description("Serial del dispositivo (de list_devices). Opcional: usa el primero.")] string? deviceSerial = null,
+        [Description("Serial o UDID del dispositivo (de list_devices). Opcional: usa el primero.")] string? deviceSerial = null,
         CancellationToken ct = default)
     {
-        var capture = await adb.CaptureAsync(deviceSerial, ct);
+        var capture = await devices.CaptureAsync(deviceSerial, ct);
 
         var sb = new StringBuilder();
         sb.AppendLine($"Captura: {capture.ScreenshotPath}");
-        sb.AppendLine($"Dispositivo: {capture.Serial}, {capture.WidthPx}×{capture.HeightPx} px, densidad {capture.Density} ({capture.WidthDp:0.#} dp de ancho)");
+        sb.AppendLine($"Dispositivo: {capture.Serial}, {capture.WidthPx}×{capture.HeightPx} px, {capture.PixelsPerUnit:0.##} px por {capture.Unit} ({capture.WidthUnits:0.#} {capture.Unit} de ancho)");
         sb.AppendLine();
         sb.AppendLine("| AutomationId | Clase | Texto | x | y | ancho | alto |");
         sb.AppendLine("|---|---|---|---|---|---|---|");
@@ -89,21 +97,21 @@ public sealed class DriftcheckTools(FigmaClient figma, AdbClient adb, ScreenComp
     }
 
     [McpServerTool(Name = "compare_screen"), Description(
-        "Compara la pantalla actual de la app en el dispositivo Android con un frame de Figma. " +
+        "Compara la pantalla actual de la app en el dispositivo (Android o simulador de iOS) con un frame de Figma. " +
         "Empareja capas de Figma con elementos de la app por texto visible, nombre = AutomationId o posición, y reporta diferencias de posición, tamaño, " +
         "texto y color de fondo. Genera side_by_side.png y diff.png (en diff.png: verde = coincide, naranja = difiere, " +
         "punteado azul = dónde debería estar según Figma). Abre las imágenes para una revisión visual.")]
     public async Task<string> CompareScreen(
         [Description("URL del frame en Figma (Copy link to selection), debe incluir ?node-id=")] string figmaUrl,
-        [Description("Serial del dispositivo. Opcional: usa el primero.")] string? deviceSerial = null,
-        [Description("Tolerancia de posición/tamaño en dp. Por defecto 2.")] double tolerance = 2,
+        [Description("Serial o UDID del dispositivo. Opcional: usa el primero.")] string? deviceSerial = null,
+        [Description("Tolerancia de posición/tamaño en dp o pt. Por defecto 2.")] double tolerance = 2,
         [Description("Tolerancia de color (distancia RGB 0–441). Por defecto 24.")] double colorTolerance = 24,
         [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
         CancellationToken ct = default)
     {
         var frameTask = figma.GetFrameAsync(figmaUrl, refresh, ct);
         var pngTask = figma.RenderPngAsync(figmaUrl, 2, refresh, ct);
-        var captureTask = adb.CaptureAsync(deviceSerial, ct);
+        var captureTask = devices.CaptureAsync(deviceSerial, ct);
         await Task.WhenAll(frameTask, pngTask, captureTask);
 
         var result = comparer.Compare(await frameTask, await pngTask, await captureTask, tolerance, colorTolerance);

@@ -41,6 +41,8 @@ public sealed class Settings
             Environment.GetEnvironmentVariable("ANDROID_HOME"),
             Environment.GetEnvironmentVariable("ANDROID_SDK_ROOT"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Android", "Sdk"),
+            // Donde lo instala Android Studio en macOS.
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Android", "sdk"),
             @"C:\Program Files (x86)\Android\android-sdk",
             @"C:\Program Files\Android\android-sdk",
         };

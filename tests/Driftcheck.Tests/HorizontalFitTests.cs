@@ -1,5 +1,5 @@
 using Driftcheck.Mcp;
-using Driftcheck.Mcp.Android;
+using Driftcheck.Mcp.Devices;
 using Driftcheck.Mcp.Comparison;
 using Driftcheck.Mcp.Figma;
 using SkiaSharp;
@@ -67,9 +67,9 @@ public class HorizontalFitTests : IDisposable
     static DesignFrame Frame(double width, params DesignElement[] elements) =>
         new("key", "1:2", "Frame", new Rect(0, 0, width, 800), elements);
 
-    // Densidad 160 → 1 px = 1 dp.
+    // 1 px = 1 dp.
     ScreenCapture Capture(int width, params ScreenElement[] elements) =>
-        new("test", Png(width, "device"), width, 800, 160, elements);
+        new("test", Png(width, "device"), width, 800, 1, elements);
 
     string Png(int width, string name = "design")
     {
