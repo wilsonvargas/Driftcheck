@@ -23,6 +23,15 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
 {
     const string Api = "https://api.figma.com/v1";
 
+    /// <summary>Escala del PNG que trae un export del plugin (y la que usa compare_screen).</summary>
+    const double ExportScale = 2;
+
+    readonly DesignExports exports = new(settings);
+
+    const string PluginHint =
+        "Sin la API, exporta el frame con el plugin de Driftcheck en Figma (tools/figma-export-plugin) y deja " +
+        "el archivo .driftcheck.json en Descargas, o pásale su ruta a import_design.";
+
     /// <summary>
     /// Acepta URLs del tipo https://www.figma.com/design/{key}/{name}?node-id=12-34
     /// (también /file/ y /proto/).
@@ -44,12 +53,13 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
     /// <summary>
     /// Descarga el frame, o lo lee de la caché local. La API de Figma tiene un cupo muy bajo en algunos
     /// tipos de cuenta (unas pocas llamadas por período), así que cada frame se descarga una sola vez
-    /// salvo que se pida <paramref name="refresh"/>.
+    /// salvo que se pida <paramref name="refresh"/>. Un export del plugin más nuevo que la caché la reemplaza.
     /// </summary>
     public async Task<DesignFrame> GetFrameAsync(string url, bool refresh = false, CancellationToken ct = default)
     {
         var (fileKey, nodeId) = ParseUrl(url);
         var cachePath = CachePath(fileKey, nodeId, "json");
+        await ImportNewerExportAsync(fileKey, nodeId, ct);
 
         DateTime? cachedAt = null;
         string json;
@@ -86,6 +96,7 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
         var (fileKey, nodeId) = ParseUrl(url);
         var scaleText = scale.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var path = CachePath(fileKey, nodeId, $"{scaleText}x.png");
+        if (scale == ExportScale) await ImportNewerExportAsync(fileKey, nodeId, ct);
         if (!refresh && File.Exists(path)) return path;
 
         using var doc = JsonDocument.Parse(await GetStringAsync(
@@ -98,6 +109,21 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
         return path;
     }
 
+    /// <summary>
+    /// Si hay un export del plugin de este frame más nuevo que la caché (o no hay caché), lo pasa a la caché:
+    /// volver a exportar el frame en Figma es la forma de actualizarlo sin la API.
+    /// </summary>
+    async Task ImportNewerExportAsync(string fileKey, string nodeId, CancellationToken ct)
+    {
+        if (exports.Find(fileKey, nodeId) is not { } export) return;
+
+        var jsonPath = CachePath(fileKey, nodeId, "json");
+        if (File.Exists(jsonPath) && File.GetLastWriteTimeUtc(jsonPath) >= export.ExportedAtUtc) return;
+
+        var pngPath = CachePath(fileKey, nodeId, $"{ExportScale.ToString(System.Globalization.CultureInfo.InvariantCulture)}x.png");
+        await exports.ImportAsync(export, jsonPath, pngPath, ct);
+    }
+
     string CachePath(string fileKey, string nodeId, string suffix)
     {
         var dir = Path.Combine(settings.OutputDirectory, "cache");
@@ -108,7 +134,7 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
     async Task<string> GetStringAsync(string url, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(settings.FigmaToken))
-            throw new InvalidOperationException("Falta la variable de entorno FIGMA_TOKEN (Personal Access Token de Figma con alcance File content: Read-only).");
+            throw new InvalidOperationException("Falta la variable de entorno FIGMA_TOKEN (Personal Access Token de Figma con alcance File content: Read-only). " + PluginHint);
 
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.Add("X-Figma-Token", settings.FigmaToken);
@@ -121,7 +147,7 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
             var wait = res.Headers.RetryAfter?.Delta is { } delta ? $" Figma pide esperar {FormatWait(delta)}." : "";
             throw new InvalidOperationException(
                 $"Figma rechazó la solicitud por límite de uso (429).{wait} Los frames ya descargados siguen " +
-                "funcionando desde la caché; el cupo depende del tipo de asiento de la cuenta dueña del token.");
+                "funcionando desde la caché; el cupo depende del tipo de asiento de la cuenta dueña del token. " + PluginHint);
         }
 
         if (!res.IsSuccessStatusCode)

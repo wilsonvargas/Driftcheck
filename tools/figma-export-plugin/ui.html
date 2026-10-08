@@ -1,43 +1,56 @@
 <style>
-  body { font: 12px sans-serif; margin: 12px; }
-  textarea { width: 100%; height: 240px; font: 11px monospace; }
+  body { font: 12px sans-serif; margin: 12px; color: #222; }
+  p { margin: 0 0 10px; line-height: 1.4; }
   code { background: #eee; padding: 1px 3px; }
   .error { color: #c00; }
+  button { margin-right: 6px; }
 </style>
-<div id="info">Exportando…</div>
-<textarea id="json" readonly></textarea>
-<p>
-  <button id="download" disabled>Descargar</button>
-  <button id="copy" disabled>Copiar</button>
+<p id="status">Exportando…</p>
+<p id="help" hidden>
+  Guárdalo en tu carpeta <b>Descargas</b>: Driftcheck lo encuentra solo. Si queda en otra carpeta, pídele a tu
+  asistente que lo importe con su ruta (<code>import_design</code>).
 </p>
+<button id="download" disabled>Descargar</button>
+<button id="again">Exportar de nuevo</button>
 <script>
   let data;
+  const status = document.getElementById("status");
+  const help = document.getElementById("help");
+  const download = document.getElementById("download");
+
   onmessage = (event) => {
-    data = event.data.pluginMessage;
-    const info = document.getElementById("info");
-    if (data.error) {
-      info.className = "error";
-      info.textContent = data.error;
+    const message = event.data.pluginMessage;
+    status.className = "";
+    if (message.busy) {
+      status.textContent = message.busy;
+      download.disabled = true;
       return;
     }
-    info.innerHTML = `Frame <b></b> (${data.nodeId}). Guárdalo como<br>` +
-      `<code>%TEMP%\\driftcheck\\cache\\${data.fileName}</code>`;
-    info.querySelector("b").textContent = data.nodeName;
-    document.getElementById("json").value = data.json;
-    document.getElementById("download").disabled = false;
-    document.getElementById("copy").disabled = false;
+    if (message.error) {
+      status.className = "error";
+      status.textContent = message.error;
+      help.hidden = true;
+      download.disabled = true;
+      return;
+    }
+
+    data = message;
+    status.innerHTML = "Listo: <b></b> (<span></span>).";
+    status.querySelector("b").textContent = data.nodeName;
+    status.querySelector("span").textContent = `${(data.json.length / 1024 / 1024).toFixed(1)} MB`;
+    help.hidden = false;
+    download.disabled = false;
+    save();
   };
 
-  document.getElementById("download").onclick = () => {
+  function save() {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([data.json], { type: "application/json" }));
     a.download = data.fileName;
     a.click();
-  };
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
 
-  document.getElementById("copy").onclick = () => {
-    const area = document.getElementById("json");
-    area.select();
-    document.execCommand("copy");
-  };
+  download.onclick = save;
+  document.getElementById("again").onclick = () => parent.postMessage({ pluginMessage: { type: "export" } }, "*");
 </script>

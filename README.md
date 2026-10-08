@@ -28,6 +28,7 @@ En `diff.png`: verde = coincide, naranja = difiere, punteado azul = dónde deber
 | `get_design_specs` | Medidas, colores, textos y fuentes del frame (antes de escribir el XAML) |
 | `capture_screen` | Captura + elementos de la app con su `AutomationId` |
 | `compare_screen` | Comparación completa diseño vs. app |
+| `import_design` | Importa un `.driftcheck.json` del plugin de Figma que quedó fuera de Descargas |
 
 ## Límites de la API de Figma
 
@@ -36,14 +37,15 @@ Figma limita cuántas llamadas puede hacer un token, y en algunos tipos de asien
 - El JSON y el PNG de cada frame se guardan en `%TEMP%\driftcheck\cache` y se reutilizan en cada comparación.
 - `get_design_specs` y `compare_screen` aceptan `refresh=true` para volver a descargar un frame que cambió en Figma. Úsalo solo cuando haga falta.
 - Si Figma responde `429`, el error dice cuánto hay que esperar.
-- Sin cupo, el JSON se puede sacar desde Figma con el plugin de `tools/figma-export-plugin` (no usa la REST API): en Figma de escritorio, *Plugins → Development → Import plugin from manifest…*, seleccionar el frame, ejecutarlo y guardar el archivo que propone en la carpeta de la caché. El PNG sigue necesitando una llamada a la API, o exportarlo a mano a 2x como `{fileKey}_{nodeId}.2x.png`.
+- **Sin token o sin cupo**, el plugin de Figma de `tools/figma-export-plugin` exporta el frame (JSON + render a 2x) a un archivo `.driftcheck.json` sin usar la REST API. Si queda en **Descargas**, `get_design_specs` y `compare_screen` lo usan solos con el link del frame; si queda en otra carpeta, se importa con `import_design`. Volver a exportar el frame actualiza el diseño. Ver [el README del plugin](tools/figma-export-plugin/README.md).
 
 ## Requisitos
 
 - .NET 10 SDK
 - Android SDK con `adb` (se detecta en `ANDROID_HOME`, `ANDROID_SDK_ROOT` o las rutas por defecto)
-- Variable de entorno `FIGMA_TOKEN` con un Personal Access Token de Figma (alcance *File content: Read-only*)
+- Variable de entorno `FIGMA_TOKEN` con un Personal Access Token de Figma (alcance *File content: Read-only*), o el plugin de Figma de `tools/figma-export-plugin` para trabajar sin la API
 - Opcional: `DRIFTCHECK_OUTPUT` para cambiar la carpeta de salida (por defecto `%TEMP%\driftcheck`)
+- Opcional: `DRIFTCHECK_EXPORTS` para cambiar dónde se buscan los exports del plugin (por defecto, Descargas)
 
 ## Uso
 
@@ -58,7 +60,7 @@ El `.mcp.json` de la raíz registra el servidor para los clientes MCP que lo lee
   "mcpServers": {
     "driftcheck": {
       "command": "dotnet",
-      "args": ["D:/Proyectos/Driftcheck/src/Driftcheck.Mcp/bin/Debug/net10.0/Driftcheck.Mcp.dll"]
+      "args": ["<ruta del repo>/src/Driftcheck.Mcp/bin/Debug/net10.0/Driftcheck.Mcp.dll"]
     }
   }
 }
