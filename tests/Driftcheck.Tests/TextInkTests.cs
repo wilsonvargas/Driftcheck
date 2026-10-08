@@ -206,6 +206,35 @@ public class TextInkTests : IDisposable
         Assert.Contains("- Footer «Pie»", report);
     }
 
+    [Fact]
+    public void DiffImageAlignsLeftAnchoredTextOnANarrowerDevice()
+    {
+        // Diseño de 400 y teléfono de 380 con el texto anclado a la izquierda: superponer el diseño centrado lo
+        // corría 10 y pintaba el texto entero de magenta aunque coincidiera.
+        var letters = new Rect(20, 100, 150, 20);
+        var design = Frame(Text("Label", "Hola", letters));
+        var designPng = Draw("design.png", canvas => Letters(canvas, letters, Ink));
+        var devicePng = Path.Combine(_dir, "device-narrow.png");
+        using (var bitmap = new SKBitmap(380, 800))
+        {
+            using (var canvas = new SKCanvas(bitmap))
+            {
+                canvas.Clear(Page);
+                Letters(canvas, letters, Ink);
+            }
+            using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(devicePng, data.ToArray());
+        }
+        var capture = new ScreenCapture("test", devicePng, 380, 800, Density,
+            [new ScreenElement(null, "android.widget.TextView", "Hola", null, new Rect(20, 98, 340, 24))]);
+
+        var result = Compare(design, designPng, capture);
+
+        Assert.Empty(result.Diffs);
+        var line = result.Report.Split('\n').Single(l => l.Contains("Píxeles distintos"));
+        Assert.Matches(@"Píxeles distintos: 0[.,]0", line);
+    }
+
     ComparisonResult Compare(DesignFrame design, string designPng, ScreenCapture capture) =>
         new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24);
 
