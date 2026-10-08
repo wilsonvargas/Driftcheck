@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/PayloMaui/PayloMaui.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Driftcheck.Mcp/Driftcheck.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Driftcheck.Tests/Driftcheck.Tests.csproj" />
+  </Folder>
+</Solution>
