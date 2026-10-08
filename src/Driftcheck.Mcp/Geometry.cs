@@ -5,6 +5,7 @@ public readonly record struct Rect(double X, double Y, double Width, double Heig
 {
     public Rect Scale(double s) => new(X * s, Y * s, Width * s, Height * s);
     public Rect Offset(double dx, double dy) => this with { X = X + dx, Y = Y + dy };
+    public Rect Inflate(double d) => new(X - d, Y - d, Width + 2 * d, Height + 2 * d);
     public override string ToString() => $"x={X:0.#} y={Y:0.#} w={Width:0.#} h={Height:0.#}";
 }
 

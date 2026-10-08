@@ -18,7 +18,7 @@ Servidor MCP local que compara la pantalla de una app móvil (Android) con su di
 6. Estima el desplazamiento global (barra de estado, notch) con la mediana y reporta diferencias de posición, tamaño, texto, color de fondo y color de los textos (medido igual que las letras, así cuenta la opacidad).
 7. Genera `side_by_side.png`, `diff.png` y `report.md`.
 
-En `diff.png`: verde = coincide, naranja = difiere, punteado azul = dónde debería estar según Figma, magenta = píxeles distintos.
+En `diff.png`: verde = coincide, naranja = difiere, punteado azul = dónde debería estar según Figma, magenta = píxeles distintos. Para el magenta, cada elemento emparejado del diseño se superpone sobre su posición en la app si coincide (así marca solo diferencias de forma o color) o donde debería estar si no; un corrimiento de un píxel no cuenta como diferencia.
 
 ## Herramientas MCP
 

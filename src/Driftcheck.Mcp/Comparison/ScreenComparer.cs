@@ -154,7 +154,34 @@ public sealed partial class ScreenComparer(Settings settings)
             canvas.Clear(SKColors.White);
             var destHeight = designPng.Height * destWidth / designPng.Width;
             using var image = SKImage.FromBitmap(designPng);
-            canvas.DrawImage(image, SKRect.Create(destLeft, dyPx, destWidth, destHeight), new SKSamplingOptions(SKFilterMode.Linear));
+            var sampling = new SKSamplingOptions(SKFilterMode.Linear);
+            canvas.DrawImage(image, SKRect.Create(destLeft, dyPx, destWidth, destHeight), sampling);
+
+            // Centrado, lo que en la app está anclado a la izquierda (o a la derecha) queda corrido la mitad de
+            // la diferencia de ancho y aparece duplicado. Cada elemento emparejado se borra de ahí (con el fondo
+            // de su recorte) y se vuelve a dibujar: si coincide, sobre su posición en la app, para que el magenta
+            // muestre solo diferencias de forma o color; si no, donde debería estar (el punteado azul).
+            // Primero los grandes, encima los textos.
+            const double Margin = 2;
+            var baseScale = destWidth / designPng.Width;
+            var byArea = measured.OrderByDescending(m => m.DesignBox.Width * m.DesignBox.Height).ToList();
+            var crops = byArea.Select(m => m.DesignBox.Inflate(Margin).Scale(designPxPerUnit)).ToList();
+
+            foreach (var source in crops)
+            {
+                if (SampleDominantColor(designPixels, designPng.Width, designPng.Height, source, inset: 0) is not { } background) continue;
+                using var fill = new SKPaint { Color = new SKColor(background.R, background.G, background.B) };
+                canvas.DrawRect(SKRect.Create(destLeft + (float)(source.X * baseScale), dyPx + (float)(source.Y * baseScale),
+                    (float)(source.Width * baseScale), (float)(source.Height * baseScale)), fill);
+            }
+
+            for (var i = 0; i < byArea.Count; i++)
+            {
+                var m = byArea[i];
+                var placed = badElements.Contains(m.Design) ? expectedBounds[m.Design] : m.Actual;
+                var target = placed.Inflate(Margin * scale).Scale(1 / pxToDp);
+                canvas.DrawImage(image, ToSk(crops[i]), ToSk(target), sampling);
+            }
         }
 
         var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, actualBounds, pxToDp,
@@ -211,10 +238,24 @@ public sealed partial class ScreenComparer(Settings settings)
 
         using var output = new SKBitmap(screenshot.Width, screenshot.Height);
         var result = new SKColor[a.Length];
+        var width = screenshot.Width;
+        int Distance(SKColor p, SKColor q) => Math.Abs(p.Red - q.Red) + Math.Abs(p.Green - q.Green) + Math.Abs(p.Blue - q.Blue);
+
+        // Un píxel solo es distinto si ninguno de sus vecinos en el diseño se le parece: un corrimiento de un
+        // píxel (antialiasing, redondeo entre densidades) no es una diferencia y pintaba el contorno de todo.
+        bool Differs(int i)
+        {
+            if (Distance(a[i], b[i]) <= threshold) return false;
+            int x = i % width, y = i / width;
+            for (var ny = Math.Max(0, y - 1); ny <= Math.Min(screenshot.Height - 1, y + 1); ny++)
+            for (var nx = Math.Max(0, x - 1); nx <= Math.Min(width - 1, x + 1); nx++)
+                if (Distance(a[i], b[ny * width + nx]) <= threshold) return false;
+            return true;
+        }
+
         for (var i = 0; i < a.Length; i++)
         {
-            var d = Math.Abs(a[i].Red - b[i].Red) + Math.Abs(a[i].Green - b[i].Green) + Math.Abs(a[i].Blue - b[i].Blue);
-            if (d > threshold)
+            if (Differs(i))
             {
                 mismatched++;
                 result[i] = new SKColor(255, 0, 80);
