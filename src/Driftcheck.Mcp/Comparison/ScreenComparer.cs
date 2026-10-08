@@ -15,7 +15,7 @@ public sealed record ComparisonResult(
     int Matched,
     IReadOnlyList<ElementDiff> Diffs);
 
-public sealed class ScreenComparer(Settings settings)
+public sealed partial class ScreenComparer(Settings settings)
 {
     const double TextWidthTolerance = 0.025;
 
@@ -102,7 +102,13 @@ public sealed class ScreenComparer(Settings settings)
                 ? Math.Max(tolerance, expected.Width * TextWidthTolerance)
                 : tolerance;
 
-            Check("x", expected.X, actual.X, tolerance);
+            // Si el ancho cambia dentro de lo tolerado, el borde izquierdo se corre hasta esa diferencia según
+            // la alineación (nada a la izquierda, la mitad centrado, todo a la derecha).
+            var xTolerance = designInk is not null && appInk is not null
+                ? tolerance + Math.Min(Math.Abs(expected.Width - actual.Width), widthTolerance)
+                : tolerance;
+
+            Check("x", expected.X, actual.X, xTolerance);
             Check("y", expected.Y, actual.Y, tolerance);
             Check("width", expected.Width, actual.Width, widthTolerance);
             Check("height", expected.Height, actual.Height, tolerance);
@@ -277,6 +283,12 @@ public sealed class ScreenComparer(Settings settings)
 
     sealed record InkSample(Rect Bounds, Rgb Color);
 
+    /// <summary>
+    /// Píxeles desde el borde de la región que todavía cuentan como "tocar el borde": al pasar los límites de
+    /// una vista de dp a píxeles, la región puede empezar una fila o columna antes que la vista.
+    /// </summary>
+    const int EdgeMargin = 2;
+
     /// <summary>Pareja diseño/app con las cajas que se comparan (las letras, en los textos medibles).</summary>
     sealed record Measured(DesignElement Design, ScreenElement Screen, Rect DesignBox, Rect Actual, InkSample? DesignInk, InkSample? AppInk);
 
@@ -308,6 +320,7 @@ public sealed class ScreenComparer(Settings settings)
         ink = DropSolidEdges(ink, x1, y1, x2, y2);
         if (ink.Count < MinInkPixels) return null;
 
+        ink = KeepTextRows(ink, y1, y2);
         ink = KeepTextColumns(ink, x1, x2);
 
         // El 20 % más alejado del fondo: el centro de los trazos, donde el color es puro.
@@ -324,7 +337,8 @@ public sealed class ScreenComparer(Settings settings)
     /// <summary>
     /// Quita las filas y columnas del borde de la región que son casi enteras de "tinta": son una línea
     /// sólida, no texto. Pasa cuando, al redondear los límites de una vista, entra una fila del fondo de
-    /// la página (y deja unidas todas las columnas en un solo bloque).
+    /// la página (y deja unidas todas las columnas en un solo bloque), o cuando la vista de un campo de
+    /// texto llega hasta el borde del campo.
     /// </summary>
     static List<(int X, int Y, double Distance, SKColor Color)> DropSolidEdges(
         List<(int X, int Y, double Distance, SKColor Color)> ink, int x1, int y1, int x2, int y2)
@@ -335,13 +349,45 @@ public sealed class ScreenComparer(Settings settings)
         bool SolidRow(int y) => rows.GetValueOrDefault(y) >= SolidShare * (x2 - x1 + 1);
         bool SolidCol(int x) => cols.GetValueOrDefault(x) >= SolidShare * (y2 - y1 + 1);
 
+        // Las filas vacías del borde se saltan: el antialiasing de una línea deja una fila tenue (que no llega
+        // a ser tinta) entre la línea y el borde de la región, y no debe frenar el recorte.
+        bool EmptyRow(int y) => !rows.ContainsKey(y);
+        bool EmptyCol(int x) => !cols.ContainsKey(x);
+
         int top = y1, bottom = y2, left = x1, right = x2;
-        while (top < bottom && SolidRow(top)) top++;
-        while (bottom > top && SolidRow(bottom)) bottom--;
-        while (left < right && SolidCol(left)) left++;
-        while (right > left && SolidCol(right)) right--;
+        while (top < bottom && (EmptyRow(top) || SolidRow(top))) top++;
+        while (bottom > top && (EmptyRow(bottom) || SolidRow(bottom))) bottom--;
+        while (left < right && (EmptyCol(left) || SolidCol(left))) left++;
+        while (right > left && (EmptyCol(right) || SolidCol(right))) right--;
 
         return ink.Where(p => p.Y >= top && p.Y <= bottom && p.X >= left && p.X <= right).ToList();
+    }
+
+    /// <summary>
+    /// Separa la tinta en franjas de filas (divididas por filas vacías) y quita las que tocan el borde de
+    /// arriba o de abajo, salvo la principal: son partes de otra vista que se monta sobre esta,
+    /// como la cola de la "y" de una etiqueta que se pega 2 dp encima de un campo. Un texto de varias líneas
+    /// se conserva entero: sus líneas no tocan el borde.
+    /// </summary>
+    static List<(int X, int Y, double Distance, SKColor Color)> KeepTextRows(
+        List<(int X, int Y, double Distance, SKColor Color)> ink, int top, int bottom)
+    {
+        var rows = ink.Select(p => p.Y).Distinct().Order().ToList();
+        var bands = new List<(int First, int Last)> { (rows[0], rows[0]) };
+        foreach (var y in rows.Skip(1))
+        {
+            if (y > bands[^1].Last + 1) bands.Add((y, y));
+            else bands[^1] = (bands[^1].First, y);
+        }
+
+        if (bands.Count == 1) return ink;
+
+        // La franja con más tinta es el texto aunque toque el borde (una "@" puede llegar a la última fila
+        // de un campo ajustado); de las demás se quitan las que tocan el borde.
+        int InkIn((int First, int Last) b) => ink.Count(p => p.Y >= b.First && p.Y <= b.Last);
+        var main = bands.MaxBy(InkIn);
+        var keep = bands.Where(b => b == main || (b.First > top + EdgeMargin && b.Last < bottom - EdgeMargin)).ToList();
+        return ink.Where(p => keep.Any(b => p.Y >= b.First && p.Y <= b.Last)).ToList();
     }
 
     /// <summary>
@@ -365,7 +411,7 @@ public sealed class ScreenComparer(Settings settings)
         if (blocks.Count == 1) return ink;
 
         bool TouchesEdge(List<IGrouping<int, (int X, int Y, double Distance, SKColor Color)>> b) =>
-            b[0].Key <= left || b[^1].Key >= right;
+            b[0].Key <= left + EdgeMargin || b[^1].Key >= right - EdgeMargin;
         var candidates = blocks.Where(b => !TouchesEdge(b)).ToList();
         var best = (candidates.Count > 0 ? candidates : blocks).MaxBy(b => b.Sum(c => c.Count()))!;
         return best.SelectMany(c => c).ToList();
@@ -445,7 +491,15 @@ public sealed class ScreenComparer(Settings settings)
 
         // Un texto del diseño que no aparece en la app casi siempre es algo que falta implementar;
         // los contenedores (Auto Layout, instancias) rara vez tienen equivalente y solo harían ruido.
-        var missingText = missing.Where(m => m.Text is not null).ToList();
+        // La hora de la barra de estado que los diseños dibujan como maqueta ("12:30" arriba) no es de la app.
+        var statusBarClock = missing.Where(IsStatusBarClock).ToList();
+        var missingText = missing.Where(m => m.Text is not null).Except(statusBarClock).ToList();
+        if (statusBarClock.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"Se ignoró la hora de la barra de estado del diseño ({string.Join(", ", statusBarClock.Select(m => m.Text))}).");
+        }
+
         if (missingText.Count > 0)
         {
             sb.AppendLine();
@@ -456,7 +510,7 @@ public sealed class ScreenComparer(Settings settings)
             if (missingText.Count > 40) sb.AppendLine($"- … y {missingText.Count - 40} más");
         }
 
-        var missingOther = missing.Count - missingText.Count;
+        var missingOther = missing.Count - missingText.Count - statusBarClock.Count;
         if (missingOther > 0)
         {
             sb.AppendLine();
@@ -466,6 +520,13 @@ public sealed class ScreenComparer(Settings settings)
 
         return sb.ToString();
     }
+
+    /// <summary>Texto con forma de hora ("9:41", "12:30") en la franja de la barra de estado (los primeros 48 dp).</summary>
+    static bool IsStatusBarClock(DesignElement d) =>
+        d.Text is { } t && d.Bounds.Y < 48 && StatusBarClockRegex().IsMatch(t.Trim());
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\d{1,2}:\d{2}$")]
+    private static partial System.Text.RegularExpressions.Regex StatusBarClockRegex();
 
     /// <summary>Nombre para el reporte: las capas de texto suelen llamarse "Text", así que se muestra su contenido.</summary>
     static string Label(DesignElement d)

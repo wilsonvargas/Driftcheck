@@ -3,13 +3,16 @@
     Pantalla "Component 113" del kit Paylo de Marvilo (CC BY 4.0), igual que SignUpPage.xaml de PayloMaui
     pero con vistas nativas de Android: sirve para comprobar que Driftcheck no depende de MAUI.
     https://www.figma.com/design/YwEhi9Xul2s3bPwRswwWTU/?node-id=2001-9332
+    La raíz toma el foco al abrir: si no, el campo de email muestra un cursor que parpadea y que el
+    diseño (la pantalla antes de tocarla) no tiene.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:gravity="center_vertical"
-    android:paddingHorizontal="35dp">
+    android:paddingHorizontal="35dp"
+    android:focusableInTouchMode="true">
 
     <!-- Encabezado: logo + textos -->
     <ImageView
@@ -88,7 +91,8 @@
             android:gravity="center"
             android:includeFontPadding="false"
             android:text="or"
-            android:fontFamily="@font/inter_regular"
+            android:fontFamily="@font/lato_regular"
+            android:letterSpacing="0.005"
             android:textSize="14sp"
             android:textColor="#1B1B1B" />
 
@@ -99,15 +103,15 @@
             android:background="#C8BED4" />
     </LinearLayout>
 
-    <!-- Email con error -->
+    <!-- Email con error: campo 54 (8 + etiqueta 16 - 2 + texto 24 + 8), 4, mensaje 16 -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="46dp"
+        android:layout_height="54dp"
         android:layout_marginTop="24dp"
         android:background="@drawable/field_error"
         android:orientation="vertical"
         android:paddingHorizontal="14dp"
-        android:paddingVertical="4dp">
+        android:paddingVertical="8dp">
 
         <TextView
             android:layout_width="match_parent"
@@ -115,6 +119,7 @@
             android:includeFontPadding="false"
             android:text="Enter your email"
             android:fontFamily="@font/inter_regular"
+            android:letterSpacing="0.025"
             android:textSize="12sp"
             android:textColor="#FF8E56" />
 
@@ -132,14 +137,15 @@
         android:layout_marginStart="14dp"
         android:includeFontPadding="false"
         android:text="Error message"
-        android:fontFamily="@font/inter_regular"
+        android:fontFamily="@font/lato_regular"
+        android:letterSpacing="0.025"
         android:textSize="12sp"
         android:textColor="#FF8E56" />
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="46dp"
-        android:layout_marginTop="28dp"
+        android:layout_marginTop="20dp"
         android:background="@drawable/field"
         android:elevation="2dp"
         android:paddingHorizontal="14dp">
@@ -158,6 +164,7 @@
         android:layout_marginTop="24dp"
         android:background="@drawable/primary_button"
         android:stateListAnimator="@null"
+        android:includeFontPadding="false"
         android:minHeight="0dp"
         android:padding="0dp"
         android:alpha="0.3"

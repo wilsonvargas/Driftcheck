@@ -37,12 +37,12 @@
                     HorizontalOptions="Center" />
 
                 <VerticalStackLayout Spacing="4">
+                    <!-- Sin HeightRequest: con 38 se recortaba la "y" (la letra de 32 necesita ~39). -->
                     <Label
                         Text="Nice to meet you"
                         FontFamily="InterSemiBold"
                         FontSize="32"
                         TextColor="#0D001F"
-                        HeightRequest="38"
                         HorizontalTextAlignment="Center"
                         VerticalTextAlignment="Center" />
                     <Label
@@ -83,7 +83,8 @@
                     <Label
                         Grid.Column="1"
                         Text="or"
-                        FontFamily="InterRegular"
+                        FontFamily="LatoRegular"
+                        CharacterSpacing="0.08"
                         FontSize="14"
                         TextColor="#1B1B1B"
                         HorizontalTextAlignment="Center"
@@ -92,19 +93,20 @@
                 </Grid>
 
                 <VerticalStackLayout Spacing="20">
-                    <!-- Email con error: campo 46 + 4 + mensaje 16 + 8 = 74 -->
+                    <!-- Email con error: campo 54 (8 + etiqueta 16 - 2 + texto 24 + 8) + 4 + mensaje 16 = 74 -->
                     <VerticalStackLayout Spacing="4">
                         <Border
                             BackgroundColor="White"
                             Stroke="#FF8E56"
                             StrokeThickness="1"
                             StrokeShape="RoundRectangle 8"
-                            HeightRequest="46"
-                            Padding="14,4">
+                            HeightRequest="54"
+                            Padding="14,8">
                             <VerticalStackLayout Spacing="-2">
                                 <Label
                                     Text="Enter your email"
                                     FontFamily="InterRegular"
+                                    CharacterSpacing="0.4"
                                     FontSize="12"
                                     TextColor="#FF8E56"
                                     HeightRequest="16" />
@@ -117,11 +119,12 @@
                         </Border>
                         <Label
                             Text="Error message"
-                            FontFamily="InterRegular"
+                            FontFamily="LatoRegular"
+                            CharacterSpacing="0.4"
                             FontSize="12"
                             TextColor="#FF8E56"
                             HeightRequest="16"
-                            Margin="14,0,0,8" />
+                            Margin="14,0,0,0" />
                     </VerticalStackLayout>
 
                     <Border

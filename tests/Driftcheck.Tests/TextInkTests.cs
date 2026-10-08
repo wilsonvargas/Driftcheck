@@ -81,6 +81,48 @@ public class TextInkTests : IDisposable
     }
 
     [Fact]
+    public void FieldBorderUnderTheTextIsNotLetters()
+    {
+        // El EditText llega hasta el borde inferior del campo: una línea naranja y, debajo, una fila tenue
+        // de antialiasing que no alcanza a ser tinta. Ni una ni otra son parte del texto.
+        var letters = new Rect(50, 520, 150, 16);
+        var design = Frame(Text("Text", "Name@marvilo.net", letters));
+        var capture = Capture(Draw("device.png", canvas =>
+            {
+                Letters(canvas, letters, Ink);
+                using var border = new SKPaint { Color = new SKColor(0xFF, 0x8E, 0x56) };
+                using var faint = new SKPaint { Color = new SKColor(0xF5, 0xE6, 0xDE) };
+                canvas.DrawRect(SKRect.Create(20, 541, 360, 1), border);
+                canvas.DrawRect(SKRect.Create(20, 542, 360, 1), faint);
+            }),
+            new ScreenElement(null, "android.widget.EditText", "Name@marvilo.net", null, new Rect(50, 518, 312, 25)));
+
+        var result = Compare(design, Draw("design.png", canvas => Letters(canvas, letters, Ink)), capture);
+
+        Assert.Empty(result.Diffs);
+    }
+
+    [Fact]
+    public void TailOfTheLabelAboveIsNotLetters()
+    {
+        // La etiqueta se monta 2 sobre el campo (margen -2): la cola de su "y" entra por arriba en la caja
+        // del EditText, separada de "Name@marvilo.net" por filas vacías.
+        var letters = new Rect(50, 524, 150, 16);
+        var design = Frame(Text("Text", "Name@marvilo.net", letters));
+        var capture = Capture(Draw("device.png", canvas =>
+            {
+                Letters(canvas, letters, Ink);
+                using var tail = new SKPaint { Color = new SKColor(0xFF, 0x8E, 0x56) };
+                canvas.DrawRect(SKRect.Create(110, 515, 4, 5), tail);
+            }),
+            new ScreenElement(null, "android.widget.EditText", "Name@marvilo.net", null, new Rect(50, 518, 312, 24)));
+
+        var result = Compare(design, Draw("design.png", canvas => Letters(canvas, letters, Ink)), capture);
+
+        Assert.Empty(result.Diffs);
+    }
+
+    [Fact]
     public void LettersOutOfPlaceAreReported()
     {
         // Dos textos en su lugar fijan el desplazamiento global; el tercero está 8 más abajo.
@@ -130,6 +172,38 @@ public class TextInkTests : IDisposable
 
         var diff = Assert.Single(result.Diffs);
         Assert.Equal(("Error", "width"), (diff.Name, diff.Property));
+    }
+
+    [Fact]
+    public void CenteredTextSlightlyNarrowerIsNotMisplaced()
+    {
+        // Texto centrado 4 más angosto (dentro del 2.5 %): su borde izquierdo se corre 2, más la tolerancia
+        // de 1 que se pide. No es un error de posición.
+        var design = Frame(Text("Subtitle", "Before we begin", new Rect(42, 320, 316, 17)));
+        var designPng = Draw("design.png", canvas => Letters(canvas, new Rect(42, 320, 316, 17), Ink));
+        var capture = Capture(Draw("device.png", canvas => Letters(canvas, new Rect(44, 320, 312, 17), Ink)),
+            new ScreenElement(null, "android.widget.TextView", "Before we begin", null, new Rect(20, 316, 360, 24)));
+
+        var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 1, colorTolerance: 24);
+
+        Assert.Empty(result.Diffs);
+    }
+
+    [Fact]
+    public void StatusBarClockOfTheDesignIsNotReportedAsMissing()
+    {
+        // Los diseños dibujan una barra de estado de maqueta con la hora; no es un texto de la app.
+        var letters = new Rect(150, 100, 100, 20);
+        var design = Frame(Text("Title", "Hola", letters), Text("12:30", "12:30", new Rect(16, 8, 34, 16)), Text("Footer", "Pie", new Rect(150, 700, 60, 16)));
+        var designPng = Draw("design.png", canvas => Letters(canvas, letters, Ink));
+        var capture = Capture(Draw("device.png", canvas => Letters(canvas, letters, Ink)),
+            new ScreenElement(null, "android.widget.TextView", "Hola", null, new Rect(20, 95, 360, 30)));
+
+        var report = Compare(design, designPng, capture).Report;
+
+        Assert.Contains("Se ignoró la hora de la barra de estado del diseño (12:30)", report);
+        Assert.Contains("## Textos del diseño que no están en la app (1)", report);
+        Assert.Contains("- Footer «Pie»", report);
     }
 
     ComparisonResult Compare(DesignFrame design, string designPng, ScreenCapture capture) =>
