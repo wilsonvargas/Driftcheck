@@ -51,13 +51,15 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
     public async Task<ScreenCapture> CaptureAsync(string udid, CancellationToken ct = default)
     {
         Directory.CreateDirectory(settings.OutputDirectory);
-        var screenshotPath = Path.Combine(settings.OutputDirectory, $"device_{udid}.png");
-        await RunTextAsync("xcrun", ["simctl", "io", udid, "screenshot", "--type=png", screenshotPath], null, ct);
-
         var dump = await DumpAccessibilityAsync(udid, ct);
         using var root = JsonDocument.Parse(dump);
         if (root.RootElement.TryGetProperty("error", out var error))
             throw new InvalidOperationException(error.GetString());
+
+        // La captura va después del árbol: leerlo tarda unos segundos y, si la app recién se abrió, una
+        // captura tomada antes puede mostrar todavía la pantalla de inicio.
+        var screenshotPath = Path.Combine(settings.OutputDirectory, $"device_{udid}.png");
+        await RunTextAsync("xcrun", ["simctl", "io", udid, "screenshot", "--type=png", screenshotPath], null, ct);
 
         using var codec = SKCodec.Create(screenshotPath)
             ?? throw new InvalidOperationException("No pude leer la captura del simulador.");
