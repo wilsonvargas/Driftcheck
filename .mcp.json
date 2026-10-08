@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "driftcheck": {
+      "command": "dotnet",
+      "args": ["src/Driftcheck.Mcp/bin/Debug/net10.0/Driftcheck.Mcp.dll"]
+    }
+  }
+}

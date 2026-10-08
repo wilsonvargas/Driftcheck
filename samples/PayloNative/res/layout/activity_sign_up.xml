@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pantalla "Component 113" del kit Paylo de Marvilo (CC BY 4.0), igual que SignUpPage.xaml de PayloMaui
+    pero con vistas nativas de Android: sirve para comprobar que Driftcheck no depende de MAUI.
+    https://www.figma.com/design/YwEhi9Xul2s3bPwRswwWTU/?node-id=2001-9332
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:paddingHorizontal="35dp">
+
+    <!-- Encabezado: logo + textos -->
+    <ImageView
+        android:id="@+id/Image"
+        android:layout_width="81dp"
+        android:layout_height="81dp"
+        android:layout_gravity="center_horizontal"
+        android:src="@drawable/paylo_logo"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="38dp"
+        android:layout_marginTop="32dp"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:text="Nice to meet you"
+        android:fontFamily="@font/inter_semibold"
+        android:textSize="32sp"
+        android:textColor="#0D001F" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="24dp"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:includeFontPadding="false"
+        android:text="Before we begin, we need some details."
+        android:fontFamily="@font/inter_regular"
+        android:textSize="17sp"
+        android:textColor="#564E60" />
+
+    <!-- Formulario -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="32dp"
+        android:background="@drawable/social_button"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/google_icon"
+            android:contentDescription="@null" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_marginStart="12dp"
+            android:gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:text="Sign up with Google"
+            android:fontFamily="@font/inter_semibold"
+            android:textSize="17sp"
+            android:textColor="#E6E6E6" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="24dp"
+        android:layout_marginTop="24dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:background="#C8BED4" />
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:text="or"
+            android:fontFamily="@font/inter_regular"
+            android:textSize="14sp"
+            android:textColor="#1B1B1B" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1"
+            android:background="#C8BED4" />
+    </LinearLayout>
+
+    <!-- Email con error -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginTop="24dp"
+        android:background="@drawable/field_error"
+        android:orientation="vertical"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="4dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="16dp"
+            android:includeFontPadding="false"
+            android:text="Enter your email"
+            android:fontFamily="@font/inter_regular"
+            android:textSize="12sp"
+            android:textColor="#FF8E56" />
+
+        <EditText
+            style="@style/Field"
+            android:layout_marginTop="-2dp"
+            android:inputType="textEmailAddress"
+            android:text="Name@marvilo.net" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="16dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginStart="14dp"
+        android:includeFontPadding="false"
+        android:text="Error message"
+        android:fontFamily="@font/inter_regular"
+        android:textSize="12sp"
+        android:textColor="#FF8E56" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginTop="28dp"
+        android:background="@drawable/field"
+        android:elevation="2dp"
+        android:paddingHorizontal="14dp">
+
+        <EditText
+            style="@style/Field"
+            android:layout_gravity="center_vertical"
+            android:inputType="textPassword"
+            android:hint="Enter your password" />
+    </FrameLayout>
+
+    <!-- Estado "Disabled" del kit: el mismo morado al 30 % -->
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="55dp"
+        android:layout_marginTop="24dp"
+        android:background="@drawable/primary_button"
+        android:stateListAnimator="@null"
+        android:minHeight="0dp"
+        android:padding="0dp"
+        android:alpha="0.3"
+        android:enabled="false"
+        android:textAllCaps="false"
+        android:text="Sign up"
+        android:fontFamily="@font/inter_semibold"
+        android:textSize="20sp"
+        android:textColor="#FFFFFF" />
+
+    <!-- Pie -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="20dp"
+        android:layout_marginTop="32dp"
+        android:layout_gravity="center_horizontal"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:text="Already have an account?"
+            android:fontFamily="@font/inter_regular"
+            android:textSize="14sp"
+            android:textColor="#564E60" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:includeFontPadding="false"
+            android:text="Log in"
+            android:fontFamily="@font/inter_semibold"
+            android:textSize="14sp"
+            android:textColor="#9E56FF" />
+    </LinearLayout>
+</LinearLayout>

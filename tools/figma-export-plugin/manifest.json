@@ -1,0 +1,12 @@
+{
+  "name": "Driftcheck Export",
+  "id": "driftcheck-export-dev",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma", "dev"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["none"]
+  }
+}
