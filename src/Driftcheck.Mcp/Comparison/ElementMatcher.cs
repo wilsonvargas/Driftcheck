@@ -125,7 +125,7 @@ public static class ElementMatcher
         return intersection / (a.Width * a.Height + b.Width * b.Height - intersection);
     }
 
-    static double Median(IEnumerable<double> values)
+    internal static double Median(IEnumerable<double> values)
     {
         var sorted = values.Order().ToArray();
         if (sorted.Length == 0) return 0;
