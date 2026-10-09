@@ -11,6 +11,13 @@ namespace Driftcheck.Mcp.Tools;
 [McpServerToolType]
 public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, ScreenComparer comparer, Settings settings)
 {
+    /// <summary>
+    /// Si la captura parece una pantalla de carga se vuelve a tomar: el splash de .NET dura unos segundos
+    /// después de abrir la app, más con el emulador recién arrancado.
+    /// </summary>
+    const int MaxCaptureAttempts = 3;
+    static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2.5);
+
     [McpServerTool(Name = "import_design"), Description(
         "Importa un archivo .driftcheck.json exportado con el plugin de Driftcheck en Figma, para comparar sin la API " +
         "de Figma (sin token o sin cupo). Los que están en la carpeta Descargas se usan solos; esto es para los que " +
@@ -87,6 +94,7 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
         var sb = new StringBuilder();
         sb.AppendLine($"Captura: {capture.ScreenshotPath}");
         sb.AppendLine($"Dispositivo: {capture.Serial}, {capture.WidthPx}×{capture.HeightPx} px, {capture.PixelsPerUnit:0.##} px por {capture.Unit} ({capture.WidthUnits:0.#} {capture.Unit} de ancho)");
+        if (capture.App is { } app) sb.AppendLine($"App: {app}");
         sb.AppendLine();
         sb.AppendLine("| AutomationId | Clase | Texto | x | y | ancho | alto |");
         sb.AppendLine("|---|---|---|---|---|---|---|");
@@ -102,7 +110,8 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
         "texto y color de fondo, con la fidelidad (% de elementos como en Figma, y cuánto cambió desde la comparación anterior) " +
         "y cómo corregir cada diferencia con las propiedades del framework. Genera report.html (reporte interactivo para " +
         "mostrarle al usuario), side_by_side.png y diff.png (en diff.png: verde = coincide, naranja = difiere, " +
-        "punteado azul = dónde debería estar según Figma). Abre las imágenes para una revisión visual.")]
+        "punteado azul = dónde debería estar según Figma). Abre las imágenes para una revisión visual. " +
+        "Si la captura no se parece al diseño (una pantalla de carga), espera y vuelve a capturar hasta 3 veces.")]
     public async Task<string> CompareScreen(
         [Description("URL del frame en Figma (Copy link to selection), debe incluir ?node-id=")] string figmaUrl,
         [Description("Serial o UDID del dispositivo. Opcional: usa el primero.")] string? deviceSerial = null,
@@ -110,16 +119,44 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
         [Description("Tolerancia de color (distancia RGB 0–441). Por defecto 24.")] double colorTolerance = 24,
         [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
         [Description("Framework de la app, para escribir las sugerencias con sus propiedades: maui, android (vistas XML), compose, uikit, swiftui o flutter. Opcional.")] string? framework = null,
+        [Description("Carpeta del proyecto de la app. Opcional: si tiene archivos más nuevos que la app instalada, el reporte avisa que falta compilar e instalar.")] string? projectPath = null,
         CancellationToken ct = default)
     {
         var fw = FixSuggester.ParseFramework(framework);
+        if (projectPath is not null && !Directory.Exists(projectPath))
+            throw new ArgumentException($"No encuentro la carpeta del proyecto: {projectPath}");
+
         var frameTask = figma.GetFrameAsync(figmaUrl, refresh, ct);
         var pngTask = figma.RenderPngAsync(figmaUrl, 2, refresh, ct);
         var captureTask = devices.CaptureAsync(deviceSerial, ct);
         await Task.WhenAll(frameTask, pngTask, captureTask);
+        var (design, designPng, capture) = (await frameTask, await pngTask, await captureTask);
 
-        var result = comparer.Compare(await frameTask, await pngTask, await captureTask, tolerance, colorTolerance, fw);
-        return result.Report + $"\n\nreport.html: {result.HtmlReportPath}\nside_by_side: {result.SideBySidePath}\ndiff: {result.DiffPath}";
+        ComparisonResult result;
+        var retries = 0;
+        while (true)
+        {
+            List<string> warnings = [];
+            if (projectPath is not null && ProjectFreshness.Check(projectPath, capture.App) is { } stale) warnings.Add(stale);
+
+            result = comparer.Compare(design, designPng, capture, tolerance, colorTolerance, fw, warnings);
+            if (!result.LooksLikeLoadingScreen || retries == MaxCaptureAttempts - 1) break;
+
+            // Se borra para que la próxima comparación no la tome como la anterior.
+            ScreenComparer.Discard(result);
+            await Task.Delay(RetryDelay, ct);
+            capture = await devices.CaptureAsync(capture.Serial, ct);
+            retries++;
+        }
+
+        var retryNote = retries switch
+        {
+            0 => "",
+            1 => "(La primera captura no se parecía al diseño, así que se esperó y se volvió a capturar.)\n\n",
+            _ => $"(Las primeras {retries} capturas no se parecían al diseño, así que se esperó y se volvió a capturar.)\n\n",
+        };
+        return retryNote + result.Report +
+               $"\n\nreport.html: {result.HtmlReportPath}\nside_by_side: {result.SideBySidePath}\ndiff: {result.DiffPath}";
     }
 
     static string F(double v) => v.ToString("0.#", CultureInfo.InvariantCulture);

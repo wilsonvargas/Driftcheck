@@ -27,11 +27,21 @@ public sealed record ComparisonResult(
     IReadOnlyList<ElementDiff> Diffs,
     string HtmlReportPath,
     FidelityScore Fidelity,
-    IReadOnlyList<ElementResult> Elements);
+    IReadOnlyList<ElementResult> Elements,
+    double MismatchRatio,
+    bool LooksLikeLoadingScreen,
+    IReadOnlyList<string> Warnings);
 
 public sealed partial class ScreenComparer(Settings settings)
 {
     const double TextWidthTolerance = 0.025;
+
+    /// <summary>
+    /// Con más de la mitad de los píxeles distintos, la captura no es la pantalla del diseño: una pantalla de
+    /// carga (el splash de .NET tapa la app aunque uiautomator ya liste sus elementos), un diálogo u otra
+    /// pantalla. Una app mal maquetada da 5–30 %; una que coincide, 1–3 %.
+    /// </summary>
+    const double LoadingScreenMismatch = 0.5;
 
     public ComparisonResult Compare(
         DesignFrame design,
@@ -39,7 +49,8 @@ public sealed partial class ScreenComparer(Settings settings)
         ScreenCapture capture,
         double tolerance,
         double colorTolerance,
-        UiFramework framework = UiFramework.Generic)
+        UiFramework framework = UiFramework.Generic,
+        IReadOnlyList<string>? warnings = null)
     {
         using var screenshot = SKBitmap.Decode(capture.ScreenshotPath)
             ?? throw new InvalidOperationException("No pude leer la captura del dispositivo.");
@@ -221,15 +232,24 @@ public sealed partial class ScreenComparer(Settings settings)
         var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, actualBounds, pxToDp, diffPath);
         WriteSideBySide(alignedDesign, screenshot, Path.Combine(runDir, "side_by_side.png"));
 
+        var looksLikeLoadingScreen = mismatchRatio > LoadingScreenMismatch || (pairs.Count == 0 && missingText.Count > 0);
+        var allWarnings = new List<string>();
+        if (looksLikeLoadingScreen)
+            allWarnings.Add($"La captura no se parece al diseño ({mismatchRatio:P0} de píxeles distintos" +
+                            (pairs.Count == 0 ? ", ningún elemento emparejado" : "") +
+                            "): puede ser una pantalla de carga, un diálogo, el teclado u otra pantalla. " +
+                            "Mira side_by_side.png antes de corregir nada.");
+        if (warnings is not null) allWarnings.AddRange(warnings);
+
         var htmlPath = Path.Combine(runDir, "report.html");
         var report = BuildReport(design, capture, scale, extraWidth, dx, dy, pairs, missing, missingText, statusBarClock,
-            diffs, elements, fidelity, mismatchRatio, runDir, htmlPath);
+            diffs, elements, fidelity, mismatchRatio, allWarnings, runDir, htmlPath);
         File.WriteAllText(Path.Combine(runDir, "report.md"), report);
 
         using (var designData = alignedDesign.Encode(SKEncodedImageFormat.Png, 100))
             HtmlReport.Write(htmlPath, new HtmlReport.Model(
-                design.Name, $"{capture.Serial} · {capture.WidthUnits:0.#} {capture.Unit} de ancho", DateTime.Now,
-                capture.PixelsPerUnit, screenshot.Width, screenshot.Height, fidelity, mismatchRatio, elements,
+                design.Name, $"{capture.Serial} · {capture.WidthUnits:0.#} {capture.Unit} de ancho", capture.App?.ToString(), DateTime.Now,
+                capture.PixelsPerUnit, screenshot.Width, screenshot.Height, fidelity, mismatchRatio, allWarnings, elements,
                 designData.ToArray(), File.ReadAllBytes(capture.ScreenshotPath), File.ReadAllBytes(diffPath)));
 
         RunHistory.Save(runDir, new RunHistory.RunSummary(design.FileKey, design.NodeId, capture.Serial,
@@ -238,7 +258,14 @@ public sealed partial class ScreenComparer(Settings settings)
         return new ComparisonResult(report,
             Path.Combine(runDir, "side_by_side.png"),
             diffPath,
-            pairs.Count, diffs, htmlPath, fidelity, elements);
+            pairs.Count, diffs, htmlPath, fidelity, elements, mismatchRatio, looksLikeLoadingScreen, allWarnings);
+    }
+
+    /// <summary>Borra la carpeta de una comparación que no sirve (se va a repetir), para que no cuente como la anterior.</summary>
+    public static void Discard(ComparisonResult result)
+    {
+        if (Path.GetDirectoryName(result.HtmlReportPath) is { } runDir && Directory.Exists(runDir))
+            Directory.Delete(runDir, recursive: true);
     }
 
     /// <summary>
@@ -528,7 +555,8 @@ public sealed partial class ScreenComparer(Settings settings)
     static string BuildReport(
         DesignFrame design, ScreenCapture capture, double scale, double extraWidth, double dx, double dy, IReadOnlyList<ElementPair> pairs,
         IReadOnlyList<DesignElement> missing, List<DesignElement> missingText, List<DesignElement> statusBarClock,
-        List<ElementDiff> diffs, List<ElementResult> elements, FidelityScore fidelity, double mismatchRatio, string runDir, string htmlPath)
+        List<ElementDiff> diffs, List<ElementResult> elements, FidelityScore fidelity, double mismatchRatio, List<string> warnings,
+        string runDir, string htmlPath)
     {
         var byMethod = pairs.GroupBy(p => p.Method).ToDictionary(g => g.Key, g => g.Count());
         int Count(MatchMethod m) => byMethod.GetValueOrDefault(m);
@@ -549,10 +577,16 @@ public sealed partial class ScreenComparer(Settings settings)
                           "(los emparejados sin diferencias, sobre los emparejados más los textos del diseño que faltan en la app)");
             sb.AppendLine();
         }
+        foreach (var warning in warnings)
+        {
+            sb.AppendLine($"> ⚠️ {warning}");
+            sb.AppendLine();
+        }
         sb.AppendLine($"Reporte interactivo: {htmlPath}");
         sb.AppendLine();
         var u = capture.Unit;
         sb.AppendLine($"- Dispositivo: {capture.Serial} ({capture.WidthUnits:0.#} {u} de ancho, {capture.PixelsPerUnit:0.##} px por {u})");
+        if (capture.App is { } app) sb.AppendLine($"- App: {app}");
         sb.AppendLine(scale == 1
             ? $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, comparado 1:1 en {u}"
             : $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, escalado ×{scale:0.###} al ancho del dispositivo");

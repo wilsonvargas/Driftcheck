@@ -89,8 +89,58 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
         var screen = ReadRect(root.RootElement.GetProperty("frame"));
         var pixelsPerPoint = codec.Info.Width / screen.Width;
 
+        var app = root.RootElement.TryGetProperty("bundleId", out var b) && b.GetString() is { Length: > 0 } bundleId
+            ? await GetAppInfoAsync(udid, bundleId, ct)
+            : null;
+
         return new ScreenCapture(udid, screenshotPath, codec.Info.Width, codec.Info.Height, pixelsPerPoint,
-            ParseElements(root.RootElement, screen), DevicePlatform.Ios);
+            ParseElements(root.RootElement, screen), DevicePlatform.Ios, app);
+    }
+
+    /// <summary>
+    /// Versión y fecha de instalación de la app. El simulador comparte el disco con la Mac, así que la fecha
+    /// sale del .app instalado. Es solo para el reporte: si falla, la captura sigue sin esos datos.
+    /// </summary>
+    async Task<AppInfo?> GetAppInfoAsync(string udid, string bundleId, CancellationToken ct)
+    {
+        try
+        {
+            var (version, path) = ParseAppInfo(
+                await RunTextAsync("xcrun", ["simctl", "appinfo", udid, bundleId], null, SimctlTimeout, ct));
+            DateTime? deployed = path is not null && Directory.Exists(path)
+                ? new[] { Directory.GetLastWriteTime(path) }
+                    .Concat(Directory.EnumerateFiles(path).Select(File.GetLastWriteTime))
+                    .Max()
+                : null;
+            return new AppInfo(bundleId, version, deployed);
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            return new AppInfo(bundleId, null, null);
+        }
+    }
+
+    /// <summary>
+    /// Lee la salida de <c>simctl appinfo</c>, un plist en formato de texto
+    /// (<c>CFBundleShortVersionString = "1.0";</c>, <c>Path = "/Users/…/App.app";</c>).
+    /// </summary>
+    public static (string? Version, string? Path) ParseAppInfo(string output)
+    {
+        var values = PlistLineRegex().Matches(output)
+            .GroupBy(m => m.Groups[1].Value)
+            .ToDictionary(g => g.Key, g => g.First().Groups[2].Value.Trim('"'));
+
+        var name = values.GetValueOrDefault("CFBundleShortVersionString");
+        var build = values.GetValueOrDefault("CFBundleVersion");
+        var version = (name, build) switch
+        {
+            (null, null) => null,
+            (_, null) => name,
+            (null, _) => $"({build})",
+            _ when name == build => name,
+            _ => $"{name} ({build})",
+        };
+        return (version, values.GetValueOrDefault("Path"));
     }
 
     /// <summary>
@@ -271,4 +321,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
 
     [GeneratedRegex(@"UIKitApplication:([^\[\s]+)\[")]
     private static partial Regex AppServiceRegex();
+
+    [GeneratedRegex(@"^\s*(\w+)\s*=\s*(.*?);\s*$", RegexOptions.Multiline)]
+    private static partial Regex PlistLineRegex();
 }

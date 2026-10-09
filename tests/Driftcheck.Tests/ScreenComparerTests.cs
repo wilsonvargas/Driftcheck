@@ -139,6 +139,53 @@ public class ScreenComparerTests : IDisposable
         Assert.Contains("- **Login Button** (AutomationId `LoginButton`)", result.Report);
     }
 
+    [Fact]
+    public void FlagsCaptureThatDoesNotLookLikeTheDesign()
+    {
+        // Como el splash de .NET: uiautomator ya lista los elementos de la app, pero la captura es otra cosa.
+        var (design, designPng) = Design(scale: 1);
+        var capture = Capture(loginY: 600, loginColor: Blue, title: "Bienvenido");
+        Draw(capture.ScreenshotPath, 400, 800, [(new Rgb(0x51, 0x2B, 0xD4), new Rect(0, 0, 400, 800))]);
+
+        var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24);
+
+        Assert.True(result.LooksLikeLoadingScreen);
+        Assert.Contains(result.Warnings, w => w.StartsWith("La captura no se parece al diseño"));
+        Assert.Contains("> ⚠️ La captura no se parece al diseño", result.Report);
+    }
+
+    [Fact]
+    public void ReportShowsAppAndWarnings()
+    {
+        var (design, designPng) = Design(scale: 1);
+        var capture = Capture(loginY: 600, loginColor: Blue, title: "Bienvenido") with
+        {
+            App = new AppInfo("com.companyname.paylomaui", "1.0 (1)", new DateTime(2026, 10, 9, 11, 9, 0)),
+        };
+
+        var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24,
+            warnings: ["La app instalada es vieja."]);
+
+        Assert.False(result.LooksLikeLoadingScreen);
+        Assert.Contains("- App: com.companyname.paylomaui 1.0 (1), instalada el 2026-10-09 11:09", result.Report);
+        Assert.Contains("> ⚠️ La app instalada es vieja.", result.Report);
+        Assert.Contains("La app instalada es vieja.", File.ReadAllText(result.HtmlReportPath));
+    }
+
+    [Fact]
+    public void DiscardedComparisonIsNotThePreviousOne()
+    {
+        var (design, designPng) = Design(scale: 1);
+        var comparer = new ScreenComparer(new Settings());
+
+        var discarded = comparer.Compare(design, designPng, Capture(loginY: 612, loginColor: Red, title: "Bienvenida"), tolerance: 2, colorTolerance: 24);
+        ScreenComparer.Discard(discarded);
+        var next = comparer.Compare(design, designPng, Capture(loginY: 600, loginColor: Blue, title: "Bienvenido"), tolerance: 2, colorTolerance: 24);
+
+        Assert.False(Directory.Exists(Path.GetDirectoryName(discarded.HtmlReportPath)));
+        Assert.Null(next.Fidelity.Previous);
+    }
+
     static readonly Rgb Black = new(0, 0, 0);
 
     (DesignFrame, string) Design(double scale, Rgb? titleInk = null)
