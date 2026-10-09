@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ · Driftcheck</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #14171c; --muted: #646b76;
+    --ok: #13915a; --bad: #e0660f; --missing: #d4343b; --expected: #2a5bd7; --accent: #2a5bd7;
+    --chip: #eef1f5; --code: #f1f3f6; --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+    --radius: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115; --surface: #171a20; --border: #2a2f38; --text: #e9ecf1; --muted: #9aa3af;
+      --ok: #34c17f; --bad: #f08a3c; --missing: #f0636a; --expected: #6b93ff; --accent: #6b93ff;
+      --chip: #222731; --code: #222731; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+    padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .brand { font-weight: 600; color: var(--muted); font-size: 13px; letter-spacing: .02em; }
+  h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .score { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+  .ring { width: 64px; height: 64px; }
+  .ring circle { fill: none; stroke-width: 6; }
+  .ring .track { stroke: var(--chip); }
+  .ring .value { stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset .6s ease; }
+  .ring text { font-size: 17px; font-weight: 700; fill: var(--text); text-anchor: middle; dominant-baseline: central; }
+  .score-label { font-weight: 600; }
+  .delta { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .delta.up { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+  .delta.down { color: var(--missing); background: color-mix(in srgb, var(--missing) 14%, transparent); }
+  .delta.same { color: var(--muted); background: var(--chip); }
+  .counts { color: var(--muted); font-size: 13px; }
+  .counts b { color: var(--text); font-weight: 600; }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; padding: 16px 24px; align-items: start; }
+  @media (max-width: 960px) { main { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .segmented { display: inline-flex; background: var(--chip); border-radius: 6px; padding: 2px; }
+  .segmented button {
+    border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px;
+    padding: 5px 12px; border-radius: 5px; cursor: pointer;
+  }
+  .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
+  .segmented button:focus-visible, .item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .toolbar label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; cursor: pointer; }
+  .toolbar input[type=range] { width: 140px; accent-color: var(--accent); }
+  .hint { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+  .viewer { display: flex; justify-content: center; gap: 16px; padding: 16px; }
+  .frame { position: relative; height: min(76vh, 900px); aspect-ratio: var(--ar); flex: none; user-select: none; }
+  .frame img, .frame svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .frame img { border-radius: 4px; outline: 1px solid var(--border); }
+  .tag {
+    position: absolute; top: 8px; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;
+    background: rgba(20, 23, 28, .72); color: #fff; pointer-events: none;
+  }
+  .tag.left { left: 8px; } .tag.right { right: 8px; }
+
+  #designFrame { display: none; }
+  .viewer.side #designFrame { display: block; }
+  .viewer.side .frame { height: min(70vh, 820px); }
+  #designTop, #diffImg, .handle, .tag.right, .tag.left.overlay { display: none; }
+  .viewer.slider #designTop, .viewer.opacity #designTop { display: block; }
+  .viewer.slider #designTop { clip-path: inset(0 calc(100% - var(--pos)) 0 0); }
+  .viewer.slider .handle, .viewer.slider .tag.right, .viewer.slider .tag.left.overlay { display: block; }
+  .viewer.diff #diffImg { display: block; }
+  .handle { position: absolute; top: 0; bottom: 0; left: var(--pos); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); cursor: ew-resize; }
+  .handle::after {
+    content: "⟷"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 32px; height: 32px; border-radius: 50%; background: #fff; color: #14171c;
+    display: grid; place-items: center; font-size: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.3);
+  }
+  .slider .frame#mainFrame { cursor: ew-resize; }
+
+  svg.boxes rect { fill: transparent; vector-effect: non-scaling-stroke; stroke-width: 2; cursor: pointer; transition: opacity .15s; }
+  svg.boxes rect.ok { stroke: var(--ok); }
+  svg.boxes rect.differs { stroke: var(--bad); stroke-width: 2.5; }
+  svg.boxes rect.missing { stroke: var(--missing); stroke-dasharray: 6 4; }
+  svg.boxes rect.expected { stroke: var(--expected); stroke-dasharray: 6 4; pointer-events: none; }
+  svg.boxes.hidden rect:not(.selected) { opacity: 0; }
+  svg.boxes.focus rect:not(.selected) { opacity: .2; }
+  svg.boxes rect.selected { stroke-width: 3.5; fill: color-mix(in srgb, currentColor 8%, transparent); }
+  .viewer.diff svg.boxes rect:not(.selected) { opacity: 0; }
+
+  aside { display: flex; flex-direction: column; max-height: calc(76vh + 74px); }
+  .filters { display: flex; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .filters button {
+    border: 1px solid var(--border); background: transparent; color: var(--muted); font: inherit; font-size: 13px;
+    padding: 3px 10px; border-radius: 999px; cursor: pointer;
+  }
+  .filters button[aria-pressed="true"] { background: var(--chip); color: var(--text); border-color: transparent; font-weight: 600; }
+  .list { overflow: auto; padding: 8px; }
+  .item { padding: 10px 12px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+  .item + .item { margin-top: 4px; }
+  .item:hover { background: var(--chip); }
+  .item.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .item-head { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.ok { background: var(--ok); } .dot.differs { background: var(--bad); } .dot.missing { background: var(--missing); }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .id { font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; color: var(--muted); background: var(--chip); padding: 0 6px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: 2px 6px 2px 0; }
+  td { padding: 2px 6px 2px 0; vertical-align: top; overflow-wrap: anywhere; }
+  td:first-child { color: var(--muted); width: 32%; }
+  .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; outline: 1px solid var(--border); }
+  .fix { margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: var(--code); font-size: 13px; }
+  .fix + .fix { margin-top: 4px; }
+  code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+  .empty { padding: 24px 12px; text-align: center; color: var(--muted); }
+  footer { padding: 0 24px 24px; color: var(--muted); font-size: 12px; }
+  kbd { font: 11px ui-monospace, Consolas, monospace; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="brand">Driftcheck</div>
+    <h1 id="title"></h1>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div class="score" id="score"></div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="toolbar">
+      <div class="segmented" role="group" aria-label="Modo de vista" id="modes">
+        <button data-mode="slider" aria-pressed="true">Deslizador</button>
+        <button data-mode="opacity" aria-pressed="false">Transparencia</button>
+        <button data-mode="diff" aria-pressed="false">Diferencias</button>
+        <button data-mode="side" aria-pressed="false">Lado a lado</button>
+      </div>
+      <label id="opacityControl" hidden>Figma <input type="range" id="opacity" min="0" max="100" value="50"> App</label>
+      <label><input type="checkbox" id="showBoxes" checked> Cajas</label>
+      <span class="hint"><kbd>1</kbd>–<kbd>4</kbd> cambian la vista</span>
+    </div>
+    <div class="viewer slider" id="viewer">
+      <div class="frame" id="designFrame">
+        <img id="designSide" alt="Diseño de Figma">
+        <span class="tag left">Figma</span>
+      </div>
+      <div class="frame" id="mainFrame">
+        <img id="appImg" alt="Captura de la app">
+        <img id="designTop" alt="">
+        <img id="diffImg" alt="Diferencias">
+        <svg class="boxes" id="boxes" aria-hidden="true"></svg>
+        <div class="handle" id="handle"></div>
+        <span class="tag left overlay">Figma</span>
+        <span class="tag right">App</span>
+      </div>
+    </div>
+  </section>
+
+  <aside class="card">
+    <div class="filters" role="group" aria-label="Filtrar elementos" id="filters"></div>
+    <div class="list" id="list"></div>
+  </aside>
+</main>
+<footer id="footer"></footer>
+
+<script>
+const data = __DATA__;
+
+const labels = { x: "x", y: "y", width: "ancho", height: "alto", text: "texto", background: "fondo", "text color": "color del texto" };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// Las sugerencias vienen en markdown simple: solo `código`.
+const md = s => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+const value = v => /^#[0-9A-F]{6}$/i.test(v) ? `<span class="swatch" style="background:${v}"></span>${esc(v)}` : esc(v);
+
+// Encabezado y puntaje
+$("title").textContent = data.title;
+$("meta").textContent = `${data.device} · ${data.date}`;
+const count = s => data.elements.filter(e => e.status === s).length;
+const f = data.fidelity;
+if (f.total > 0) {
+  const color = f.percent >= 90 ? "var(--ok)" : f.percent >= 70 ? "var(--bad)" : "var(--missing)";
+  const c = 2 * Math.PI * 26;
+  const change = f.previous == null ? "" : f.percent === f.previous
+    ? `<span class="delta same">igual que antes</span>`
+    : `<span class="delta ${f.percent > f.previous ? "up" : "down"}">${f.percent > f.previous ? "+" : "−"}${Math.abs(f.percent - f.previous)} desde ${f.previous} %</span>`;
+  $("score").innerHTML = `
+    <svg class="ring" viewBox="0 0 64 64" role="img" aria-label="Fidelidad ${f.percent} %">
+      <circle class="track" cx="32" cy="32" r="26"/>
+      <circle class="value" cx="32" cy="32" r="26" stroke="${color}" stroke-dasharray="${c}" stroke-dashoffset="${c}"/>
+      <text x="32" y="32">${f.percent}%</text>
+    </svg>
+    <div>
+      <div class="score-label">Fidelidad${change}</div>
+      <div class="counts"><b>${count("ok")}</b> coinciden · <b>${count("differs")}</b> difieren · <b>${count("missing")}</b> faltan</div>
+      <div class="counts">Píxeles distintos: ${(data.mismatch * 100).toFixed(1)} %</div>
+    </div>`;
+  requestAnimationFrame(() => requestAnimationFrame(() =>
+    document.querySelector(".ring .value").style.strokeDashoffset = c * (1 - f.percent / 100)));
+}
+$("footer").textContent = "Fidelidad: elementos emparejados sin diferencias, sobre los emparejados más los textos del diseño que faltan en la app. " +
+  "Las sugerencias son pistas: la misma diferencia puede venir del elemento o de su contenedor.";
+
+// Imágenes
+const viewer = $("viewer");
+viewer.style.setProperty("--ar", `${data.width} / ${data.height}`);
+viewer.style.setProperty("--pos", "50%");
+$("appImg").src = data.images.app;
+$("designTop").src = $("designSide").src = data.images.design;
+$("diffImg").src = data.images.diff;
+
+// Cajas
+const svg = $("boxes");
+svg.setAttribute("viewBox", `0 0 ${data.width} ${data.height}`);
+svg.setAttribute("preserveAspectRatio", "none");
+const ns = "http://www.w3.org/2000/svg";
+const rectsByIndex = data.elements.map((e, i) => {
+  const rects = [];
+  const add = (box, cls) => {
+    const r = document.createElementNS(ns, "rect");
+    [r.x.baseVal.value, r.y.baseVal.value, r.width.baseVal.value, r.height.baseVal.value] = box;
+    r.setAttribute("class", cls);
+    r.dataset.index = i;
+    svg.appendChild(r);
+    rects.push(r);
+  };
+  if (e.status === "differs") add(e.expected, "expected");
+  if (e.actual) add(e.actual, e.status); else add(e.expected, "missing");
+  return rects;
+});
+svg.addEventListener("click", ev => { if (ev.target.dataset.index) select(+ev.target.dataset.index, true); });
+$("showBoxes").addEventListener("change", ev => svg.classList.toggle("hidden", !ev.target.checked));
+
+// Modos
+const modes = [...$("modes").querySelectorAll("button")];
+function setMode(mode) {
+  viewer.className = `viewer ${mode}`;
+  modes.forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === mode));
+  $("opacityControl").hidden = mode !== "opacity";
+}
+modes.forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+$("opacity").addEventListener("input", ev => $("designTop").style.opacity = 1 - ev.target.value / 100);
+document.addEventListener("keydown", ev => {
+  if (ev.target.matches("input") || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  const i = ["1", "2", "3", "4"].indexOf(ev.key);
+  if (i >= 0) setMode(modes[i].dataset.mode);
+});
+
+// Deslizador: el diseño se recorta a la izquierda de la manija
+const main = $("mainFrame");
+let dragging = false;
+const move = ev => {
+  const r = main.getBoundingClientRect();
+  const pos = Math.min(100, Math.max(0, (ev.clientX - r.left) / r.width * 100));
+  viewer.style.setProperty("--pos", `${pos}%`);
+};
+main.addEventListener("pointerdown", ev => {
+  if (!viewer.classList.contains("slider") || ev.target.dataset.index) return;
+  dragging = true; main.setPointerCapture(ev.pointerId); move(ev);
+});
+main.addEventListener("pointermove", ev => dragging && move(ev));
+main.addEventListener("pointerup", () => dragging = false);
+// Antes de deslizar se ve la mitad de cada uno, pero sin la opacidad del modo transparencia
+const observer = new MutationObserver(() => $("designTop").style.opacity = viewer.classList.contains("opacity") ? 1 - $("opacity").value / 100 : 1);
+observer.observe(viewer, { attributes: true, attributeFilter: ["class"] });
+setMode("slider");
+
+// Lista de elementos
+const groups = [
+  { status: "differs", label: "Difieren" },
+  { status: "missing", label: "Faltan" },
+  { status: "ok", label: "Coinciden" },
+];
+let filter = count("differs") ? "differs" : count("missing") ? "missing" : "ok";
+let selected = -1;
+
+function renderFilters() {
+  $("filters").innerHTML = groups.map(g =>
+    `<button data-status="${g.status}" aria-pressed="${g.status === filter}">${g.label} (${count(g.status)})</button>`).join("");
+  $("filters").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { filter = b.dataset.status; renderFilters(); renderList(); }));
+}
+
+function renderList() {
+  const items = data.elements.map((e, i) => [e, i]).filter(([e]) => e.status === filter);
+  if (!items.length) {
+    $("list").innerHTML = `<div class="empty">${filter === "differs" ? "Sin diferencias en los elementos emparejados." : "Nada por aquí."}</div>`;
+    return;
+  }
+  $("list").innerHTML = items.map(([e, i]) => `
+    <div class="item${i === selected ? " selected" : ""}" data-index="${i}" tabindex="0">
+      <div class="item-head"><span class="dot ${e.status}"></span><span class="name">${esc(e.name)}</span>${e.id ? `<span class="id">${esc(e.id)}</span>` : ""}</div>
+      ${e.diffs.length ? `<table><tr><th></th><th>Figma</th><th>App</th></tr>${e.diffs.map(d =>
+        `<tr><td>${esc(labels[d.property] ?? d.property)}</td><td>${value(d.figma)}</td><td>${value(d.app)}</td></tr>`).join("")}</table>` : ""}
+      ${[...new Set(e.diffs.map(d => d.fix).filter(Boolean))].map(fix => `<div class="fix">${md(fix)}</div>`).join("")}
+      ${e.fix ? `<div class="fix">${md(e.fix)}</div>` : ""}
+    </div>`).join("");
+  $("list").querySelectorAll(".item").forEach(el => {
+    const i = +el.dataset.index;
+    el.addEventListener("click", () => select(i));
+    el.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(i); } });
+  });
+}
+
+function select(i, fromImage = false) {
+  selected = selected === i ? -1 : i;
+  svg.querySelectorAll("rect.selected").forEach(r => r.classList.remove("selected"));
+  svg.classList.toggle("focus", selected >= 0);
+  if (selected >= 0) {
+    rectsByIndex[selected].forEach(r => { r.classList.add("selected"); svg.appendChild(r); });
+    if (fromImage && data.elements[selected].status !== filter) { filter = data.elements[selected].status; renderFilters(); }
+  }
+  renderList();
+  if (selected >= 0 && fromImage) $("list").querySelector(".item.selected")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+renderFilters();
+renderList();
+</script>
+</body>
+</html>

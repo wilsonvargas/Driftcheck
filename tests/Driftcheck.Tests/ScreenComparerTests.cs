@@ -92,6 +92,53 @@ public class ScreenComparerTests : IDisposable
         Assert.Empty(result.Diffs);
     }
 
+    [Fact]
+    public void FidelityCountsElementsWithoutDiffsAndShowsChangeFromPreviousRun()
+    {
+        var (design, designPng) = Design(scale: 1);
+        var comparer = new ScreenComparer(new Settings());
+
+        var before = comparer.Compare(design, designPng, Capture(loginY: 612, loginColor: Red, title: "Bienvenida"), tolerance: 2, colorTolerance: 24);
+        var after = comparer.Compare(design, designPng, Capture(loginY: 600, loginColor: Blue, title: "Bienvenido"), tolerance: 2, colorTolerance: 24);
+
+        // Antes solo coincidía Subtitle; ahora los tres.
+        Assert.Equal((1, 3, 33, (int?)null), (before.Fidelity.Correct, before.Fidelity.Total, before.Fidelity.Percent, before.Fidelity.Previous));
+        Assert.Equal((3, 3, 100, (int?)33), (after.Fidelity.Correct, after.Fidelity.Total, after.Fidelity.Percent, after.Fidelity.Previous));
+        Assert.Contains("**Fidelidad: 100 %** · antes 33 % (+67)", after.Report);
+    }
+
+    [Fact]
+    public void WritesSelfContainedHtmlReport()
+    {
+        var (design, designPng) = Design(scale: 1);
+        var capture = Capture(loginY: 612, loginColor: Red, title: "Bienvenida </script>");
+
+        var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24);
+
+        var html = File.ReadAllText(result.HtmlReportPath);
+        Assert.DoesNotContain("__DATA__", html);
+        Assert.Contains("data:image/png;base64,", html);
+        Assert.Contains("\"name\":\"Login Button\"", html);
+        // Un texto de la app con </script> no puede cerrar el script de la página.
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(html, "</script>"));
+        Assert.Contains(result.HtmlReportPath, result.Report);
+    }
+
+    [Fact]
+    public void SuggestsFixesWithFrameworkProperties()
+    {
+        var (design, designPng) = Design(scale: 1);
+        var capture = Capture(loginY: 612, loginColor: Red, title: "Bienvenida");
+
+        var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24, UiFramework.Maui);
+
+        Assert.Contains(result.Diffs, d => d is { Property: "y", Fix: "Muévelo 12 dp hacia arriba: `Margin` superior −12 (o el espacio con el elemento de arriba)" });
+        Assert.Contains(result.Diffs, d => d is { Property: "background", Fix: "`BackgroundColor=\"#1976D2\"`" });
+        Assert.Contains(result.Diffs, d => d is { Property: "text", Fix: "`Text=\"Bienvenido\"`" });
+        Assert.Contains("## Cómo corregirlo", result.Report);
+        Assert.Contains("- **Login Button** (AutomationId `LoginButton`)", result.Report);
+    }
+
     static readonly Rgb Black = new(0, 0, 0);
 
     (DesignFrame, string) Design(double scale, Rgb? titleInk = null)

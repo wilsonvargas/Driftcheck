@@ -99,7 +99,9 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
     [McpServerTool(Name = "compare_screen"), Description(
         "Compara la pantalla actual de la app en el dispositivo (Android o simulador de iOS) con un frame de Figma. " +
         "Empareja capas de Figma con elementos de la app por texto visible, nombre = AutomationId o posición, y reporta diferencias de posición, tamaño, " +
-        "texto y color de fondo. Genera side_by_side.png y diff.png (en diff.png: verde = coincide, naranja = difiere, " +
+        "texto y color de fondo, con la fidelidad (% de elementos como en Figma, y cuánto cambió desde la comparación anterior) " +
+        "y cómo corregir cada diferencia con las propiedades del framework. Genera report.html (reporte interactivo para " +
+        "mostrarle al usuario), side_by_side.png y diff.png (en diff.png: verde = coincide, naranja = difiere, " +
         "punteado azul = dónde debería estar según Figma). Abre las imágenes para una revisión visual.")]
     public async Task<string> CompareScreen(
         [Description("URL del frame en Figma (Copy link to selection), debe incluir ?node-id=")] string figmaUrl,
@@ -107,15 +109,17 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
         [Description("Tolerancia de posición/tamaño en dp o pt. Por defecto 2.")] double tolerance = 2,
         [Description("Tolerancia de color (distancia RGB 0–441). Por defecto 24.")] double colorTolerance = 24,
         [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
+        [Description("Framework de la app, para escribir las sugerencias con sus propiedades: maui, android (vistas XML), compose, uikit, swiftui o flutter. Opcional.")] string? framework = null,
         CancellationToken ct = default)
     {
+        var fw = FixSuggester.ParseFramework(framework);
         var frameTask = figma.GetFrameAsync(figmaUrl, refresh, ct);
         var pngTask = figma.RenderPngAsync(figmaUrl, 2, refresh, ct);
         var captureTask = devices.CaptureAsync(deviceSerial, ct);
         await Task.WhenAll(frameTask, pngTask, captureTask);
 
-        var result = comparer.Compare(await frameTask, await pngTask, await captureTask, tolerance, colorTolerance);
-        return result.Report + $"\n\nside_by_side: {result.SideBySidePath}\ndiff: {result.DiffPath}";
+        var result = comparer.Compare(await frameTask, await pngTask, await captureTask, tolerance, colorTolerance, fw);
+        return result.Report + $"\n\nreport.html: {result.HtmlReportPath}\nside_by_side: {result.SideBySidePath}\ndiff: {result.DiffPath}";
     }
 
     static string F(double v) => v.ToString("0.#", CultureInfo.InvariantCulture);

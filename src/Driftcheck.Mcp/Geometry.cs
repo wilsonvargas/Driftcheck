@@ -13,6 +13,16 @@ public readonly record struct Rgb(byte R, byte G, byte B)
 {
     public string Hex => $"#{R:X2}{G:X2}{B:X2}";
 
+    public static bool TryParse(string? hex, out Rgb color)
+    {
+        color = default;
+        if (hex is not { Length: 7 } || hex[0] != '#' ||
+            !int.TryParse(hex.AsSpan(1), System.Globalization.NumberStyles.HexNumber, null, out var v))
+            return false;
+        color = new Rgb((byte)(v >> 16), (byte)(v >> 8), (byte)v);
+        return true;
+    }
+
     /// <summary>Distancia euclidiana simple en RGB (0–441).</summary>
     public double DistanceTo(Rgb o) =>
         Math.Sqrt(Math.Pow(R - o.R, 2) + Math.Pow(G - o.G, 2) + Math.Pow(B - o.B, 2));

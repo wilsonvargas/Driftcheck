@@ -18,7 +18,9 @@ Servidor MCP local que compara la pantalla de una app móvil (Android, o el simu
    Los ids de Android (`android:id/content`, etc.) y del marco de AppCompat (`action_bar_root`, etc.) se ignoran.
 5. En los textos compara las letras visibles, medidas en el render del diseño y en la captura, en vez de las cajas: la capa de Figma se ajusta al texto, pero en la app el texto suele estar dentro de una vista más ancha (un `TextView` de toda la fila, un botón). En el ancho de las letras tolera un 2.5 % (la misma fuente se dibuja un poco distinta en Figma y en Android); una fuente distinta se sigue reportando.
 6. Estima el desplazamiento global (barra de estado, notch) con la mediana y reporta diferencias de posición, tamaño, texto, color de fondo y color de los textos (medido igual que las letras, así cuenta la opacidad).
-7. Genera `side_by_side.png`, `diff.png` y `report.md`.
+7. Calcula la **fidelidad**: elementos emparejados sin diferencias, sobre los emparejados más los textos del diseño que faltan en la app. El reporte la compara con la comparación anterior del mismo frame en el mismo dispositivo (`antes 72 % (+16)`), para seguir el avance entre una corrección y la siguiente.
+8. Para cada diferencia sugiere qué cambiar, con las propiedades del framework si se pasa `framework` (`maui`, `android`, `compose`, `uikit`, `swiftui` o `flutter`): `Margin` superior −12, `BackgroundColor="#0D001F"`, la fuente del diseño si las letras no miden lo mismo. Son pistas: la misma diferencia puede venir del elemento o de su contenedor.
+9. Genera `report.html`, `report.md`, `side_by_side.png` y `diff.png`. `report.html` es un solo archivo con las imágenes adentro, para abrirlo o mandarlo: deslizador diseño/app, transparencia, diff, lado a lado y la lista de diferencias con sus sugerencias; al elegir una se resalta en la imagen.
 
 En `diff.png`: verde = coincide, naranja = difiere, punteado azul = dónde debería estar según Figma, magenta = píxeles distintos. Para el magenta, cada elemento emparejado del diseño se superpone sobre su posición en la app si coincide (así marca solo diferencias de forma o color) o donde debería estar si no; un corrimiento de un píxel no cuenta como diferencia.
 
@@ -29,7 +31,7 @@ En `diff.png`: verde = coincide, naranja = difiere, punteado azul = dónde deber
 | `list_devices` | Dispositivos Android conectados y simuladores de iOS encendidos |
 | `get_design_specs` | Medidas, colores, textos y fuentes del frame (antes de escribir el XAML) |
 | `capture_screen` | Captura + elementos de la app con su `AutomationId` |
-| `compare_screen` | Comparación completa diseño vs. app |
+| `compare_screen` | Comparación completa diseño vs. app: fidelidad, diferencias, cómo corregirlas y `report.html` |
 | `import_design` | Importa un `.driftcheck.json` del plugin de Figma que quedó fuera de Descargas |
 
 ## Límites de la API de Figma

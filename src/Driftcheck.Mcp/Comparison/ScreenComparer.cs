@@ -6,14 +6,28 @@ using SkiaSharp;
 
 namespace Driftcheck.Mcp.Comparison;
 
-public sealed record ElementDiff(string Name, string Property, string Expected, string Actual);
+/// <param name="Fix">Qué cambiar en el código, con las propiedades del framework de la app.</param>
+public sealed record ElementDiff(string Name, string Property, string Expected, string Actual, string? Fix = null);
+
+public enum ElementStatus { Ok, Differs, Missing }
+
+/// <summary>Una capa del diseño en la comparación, con sus cajas en unidades lógicas.</summary>
+/// <param name="Expected">Dónde debería estar según Figma (ya ajustada al dispositivo).</param>
+/// <param name="Actual">Dónde está en la app; null si falta.</param>
+/// <param name="Fix">Solo en un texto que falta: cómo agregarlo.</param>
+public sealed record ElementResult(
+    string Name, string? AutomationId, ElementStatus Status, Rect Expected, Rect? Actual,
+    IReadOnlyList<ElementDiff> Diffs, string? Fix = null);
 
 public sealed record ComparisonResult(
     string Report,
     string SideBySidePath,
     string DiffPath,
     int Matched,
-    IReadOnlyList<ElementDiff> Diffs);
+    IReadOnlyList<ElementDiff> Diffs,
+    string HtmlReportPath,
+    FidelityScore Fidelity,
+    IReadOnlyList<ElementResult> Elements);
 
 public sealed partial class ScreenComparer(Settings settings)
 {
@@ -24,7 +38,8 @@ public sealed partial class ScreenComparer(Settings settings)
         string designPngPath,
         ScreenCapture capture,
         double tolerance,
-        double colorTolerance)
+        double colorTolerance,
+        UiFramework framework = UiFramework.Generic)
     {
         using var screenshot = SKBitmap.Decode(capture.ScreenshotPath)
             ?? throw new InvalidOperationException("No pude leer la captura del dispositivo.");
@@ -77,6 +92,7 @@ public sealed partial class ScreenComparer(Settings settings)
 
         var diffs = new List<ElementDiff>();
         var badElements = new HashSet<DesignElement>(ReferenceEqualityComparer.Instance);
+        var elements = new List<ElementResult>();
 
         foreach (var (d, s, designBox, actual, designInk, appInk) in measured)
         {
@@ -85,14 +101,20 @@ public sealed partial class ScreenComparer(Settings settings)
             var expected = FitHorizontally(designBox.Scale(scale).Offset(dx, dy), extraWidth, actual);
             expectedBounds[d] = expected;
             var label = Label(d);
+            var elementDiffs = new List<ElementDiff>();
+
+            void Add(string prop, string exp, string act)
+            {
+                var diff = new ElementDiff(label, prop, exp, act);
+                diff = diff with { Fix = FixSuggester.Suggest(framework, capture.Unit, d, diff) };
+                diffs.Add(diff);
+                elementDiffs.Add(diff);
+                badElements.Add(d);
+            }
 
             void Check(string prop, double exp, double act, double allowed)
             {
-                if (Math.Abs(exp - act) > allowed)
-                {
-                    diffs.Add(new ElementDiff(label, prop, F(exp), F(act)));
-                    badElements.Add(d);
-                }
+                if (Math.Abs(exp - act) > allowed) Add(prop, F(exp), F(act));
             }
 
             // El ancho de un mismo texto varía un poco entre Figma y Android (versión de la fuente, redondeo
@@ -115,10 +137,7 @@ public sealed partial class ScreenComparer(Settings settings)
 
             var screenText = ElementMatcher.ScreenText(s);
             if (d.Text is not null && screenText is not null && !string.Equals(d.Text.Trim(), screenText.Trim(), StringComparison.Ordinal))
-            {
-                diffs.Add(new ElementDiff(label, "text", d.Text, screenText));
-                badElements.Add(d);
-            }
+                Add("text", d.Text, screenText);
 
             // El color de relleno solo se compara en formas; en un TEXT el fill es el color de la letra
             // y el muestreo del fondo daría falsos positivos.
@@ -126,23 +145,37 @@ public sealed partial class ScreenComparer(Settings settings)
             {
                 var sampled = SampleDominantColor(pixels, screenshot.Width, screenshot.Height, actual.Scale(1 / pxToDp));
                 if (sampled is { } c && c.DistanceTo(fill) > colorTolerance)
-                {
-                    diffs.Add(new ElementDiff(label, "background", fill.Hex, c.Hex));
-                    badElements.Add(d);
-                }
+                    Add("background", fill.Hex, c.Hex);
             }
 
             // El color de la letra se mide igual en el PNG del diseño y en la captura, no se toma del fill:
             // así cuenta la opacidad de la capa o de sus padres (un botón deshabilitado al 30 %).
             if (designInk is not null && appInk is not null && appInk.Color.DistanceTo(designInk.Color) > colorTolerance)
-            {
-                diffs.Add(new ElementDiff(label, "text color", designInk.Color.Hex, appInk.Color.Hex));
-                badElements.Add(d);
-            }
+                Add("text color", designInk.Color.Hex, appInk.Color.Hex);
+
+            elements.Add(new ElementResult(label, s.Id, elementDiffs.Count == 0 ? ElementStatus.Ok : ElementStatus.Differs,
+                expected, actual, elementDiffs));
         }
 
-        var runDir = Path.Combine(settings.OutputDirectory, DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture));
+        // Un texto del diseño que no aparece en la app casi siempre es algo que falta implementar;
+        // los contenedores (Auto Layout, instancias) rara vez tienen equivalente y solo harían ruido.
+        // La hora de la barra de estado que los diseños dibujan como maqueta ("12:30" arriba) no es de la app.
+        var statusBarClock = missing.Where(IsStatusBarClock).ToList();
+        var missingText = missing.Where(m => m.Text is not null).Except(statusBarClock).ToList();
+        foreach (var m in missingText)
+        {
+            // Sin la app no se sabe cómo se ancla: se ubica como el PNG del diseño, centrado.
+            var expected = m.Bounds.Scale(scale).Offset(dx + extraWidth / 2, dy);
+            elements.Add(new ElementResult(Label(m), null, ElementStatus.Missing, expected, null, [],
+                FixSuggester.AddText(framework, m)));
+        }
+
+        var runDir = Path.Combine(settings.OutputDirectory, RunHistory.NewRunDirName(DateTime.Now));
         Directory.CreateDirectory(runDir);
+
+        var previous = RunHistory.FindPrevious(settings.OutputDirectory, runDir, design.FileKey, design.NodeId, capture.Serial);
+        var fidelity = new FidelityScore(
+            elements.Count(e => e.Status == ElementStatus.Ok), elements.Count, previous?.Percent);
 
         // El PNG de Figma, al tamaño en dp del diseño, centrado y desplazado para superponerse a la captura.
         var destWidth = (float)(design.Bounds.Width * scale / pxToDp);
@@ -184,17 +217,28 @@ public sealed partial class ScreenComparer(Settings settings)
             }
         }
 
-        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, actualBounds, pxToDp,
-            Path.Combine(runDir, "diff.png"));
+        var diffPath = Path.Combine(runDir, "diff.png");
+        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, actualBounds, pxToDp, diffPath);
         WriteSideBySide(alignedDesign, screenshot, Path.Combine(runDir, "side_by_side.png"));
 
-        var report = BuildReport(design, capture, scale, extraWidth, dx, dy, pairs, missing, diffs, mismatchRatio, runDir);
+        var htmlPath = Path.Combine(runDir, "report.html");
+        var report = BuildReport(design, capture, scale, extraWidth, dx, dy, pairs, missing, missingText, statusBarClock,
+            diffs, elements, fidelity, mismatchRatio, runDir, htmlPath);
         File.WriteAllText(Path.Combine(runDir, "report.md"), report);
+
+        using (var designData = alignedDesign.Encode(SKEncodedImageFormat.Png, 100))
+            HtmlReport.Write(htmlPath, new HtmlReport.Model(
+                design.Name, $"{capture.Serial} · {capture.WidthUnits:0.#} {capture.Unit} de ancho", DateTime.Now,
+                capture.PixelsPerUnit, screenshot.Width, screenshot.Height, fidelity, mismatchRatio, elements,
+                designData.ToArray(), File.ReadAllBytes(capture.ScreenshotPath), File.ReadAllBytes(diffPath)));
+
+        RunHistory.Save(runDir, new RunHistory.RunSummary(design.FileKey, design.NodeId, capture.Serial,
+            fidelity.Percent, fidelity.Correct, fidelity.Total, diffs.Count));
 
         return new ComparisonResult(report,
             Path.Combine(runDir, "side_by_side.png"),
-            Path.Combine(runDir, "diff.png"),
-            pairs.Count, diffs);
+            diffPath,
+            pairs.Count, diffs, htmlPath, fidelity, elements);
     }
 
     /// <summary>
@@ -483,13 +527,29 @@ public sealed partial class ScreenComparer(Settings settings)
 
     static string BuildReport(
         DesignFrame design, ScreenCapture capture, double scale, double extraWidth, double dx, double dy, IReadOnlyList<ElementPair> pairs,
-        IReadOnlyList<DesignElement> missing, List<ElementDiff> diffs, double mismatchRatio, string runDir)
+        IReadOnlyList<DesignElement> missing, List<DesignElement> missingText, List<DesignElement> statusBarClock,
+        List<ElementDiff> diffs, List<ElementResult> elements, FidelityScore fidelity, double mismatchRatio, string runDir, string htmlPath)
     {
         var byMethod = pairs.GroupBy(p => p.Method).ToDictionary(g => g.Key, g => g.Count());
         int Count(MatchMethod m) => byMethod.GetValueOrDefault(m);
 
         var sb = new StringBuilder();
         sb.AppendLine($"# Comparación: {design.Name}");
+        sb.AppendLine();
+        if (fidelity.Total > 0)
+        {
+            var change = fidelity.Change switch
+            {
+                null => "",
+                0 => " · igual que la comparación anterior",
+                > 0 and var c => $" · antes {fidelity.Previous} % (+{c})",
+                var c => $" · antes {fidelity.Previous} % ({c})",
+            };
+            sb.AppendLine($"**Fidelidad: {fidelity.Percent} %**{change} — {fidelity.Correct} de {fidelity.Total} elementos como en Figma " +
+                          "(los emparejados sin diferencias, sobre los emparejados más los textos del diseño que faltan en la app)");
+            sb.AppendLine();
+        }
+        sb.AppendLine($"Reporte interactivo: {htmlPath}");
         sb.AppendLine();
         var u = capture.Unit;
         sb.AppendLine($"- Dispositivo: {capture.Serial} ({capture.WidthUnits:0.#} {u} de ancho, {capture.PixelsPerUnit:0.##} px por {u})");
@@ -529,13 +589,19 @@ public sealed partial class ScreenComparer(Settings settings)
             sb.AppendLine("|---|---|---|---|");
             foreach (var d in diffs)
                 sb.AppendLine($"| {d.Name} | {d.Property} | {d.Expected} | {d.Actual} |");
+
+            sb.AppendLine();
+            sb.AppendLine("## Cómo corregirlo");
+            sb.AppendLine();
+            foreach (var e in elements.Where(e => e.Status == ElementStatus.Differs))
+            {
+                var fixes = e.Diffs.Select(d => d.Fix).OfType<string>().Distinct().ToList();
+                if (fixes.Count == 0) continue;
+                sb.AppendLine(e.AutomationId is { } id ? $"- **{e.Name}** (AutomationId `{id}`)" : $"- **{e.Name}**");
+                foreach (var fix in fixes) sb.AppendLine($"  - {fix}");
+            }
         }
 
-        // Un texto del diseño que no aparece en la app casi siempre es algo que falta implementar;
-        // los contenedores (Auto Layout, instancias) rara vez tienen equivalente y solo harían ruido.
-        // La hora de la barra de estado que los diseños dibujan como maqueta ("12:30" arriba) no es de la app.
-        var statusBarClock = missing.Where(IsStatusBarClock).ToList();
-        var missingText = missing.Where(m => m.Text is not null).Except(statusBarClock).ToList();
         if (statusBarClock.Count > 0)
         {
             sb.AppendLine();
@@ -547,8 +613,10 @@ public sealed partial class ScreenComparer(Settings settings)
             sb.AppendLine();
             sb.AppendLine($"## Textos del diseño que no están en la app ({missingText.Count})");
             sb.AppendLine();
-            foreach (var m in missingText.Take(40))
-                sb.AppendLine($"- {Label(m)} ({m.Bounds.Scale(scale)})");
+            // Los elementos que faltan están en el mismo orden que missingText.
+            var missingElements = elements.Where(e => e.Status == ElementStatus.Missing);
+            foreach (var (m, e) in missingText.Zip(missingElements).Take(40))
+                sb.AppendLine($"- {Label(m)} ({m.Bounds.Scale(scale)}) — {e.Fix}");
             if (missingText.Count > 40) sb.AppendLine($"- … y {missingText.Count - 40} más");
         }
 
