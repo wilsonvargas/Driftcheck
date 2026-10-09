@@ -76,6 +76,7 @@ El `.mcp.json` de la raíz registra el servidor para los clientes MCP que lo lee
 - `samples/PayloMaui` — app MAUI de prueba con pantallas del kit [Paylo de Marvilo](https://www.figma.com/community/file/1428007748789833465/payment-app-free-ui-kit-by-marvilo) (CC BY 4.0)
   Para el simulador de iOS: `dotnet build -f net10.0-ios -p:TargetFrameworks=net10.0-ios` (limitar `TargetFrameworks` evita pedir el workload de Mac Catalyst) y luego `xcrun simctl install booted bin/Debug/net10.0-ios/iossimulator-arm64/PayloMaui.app` y `xcrun simctl launch booted com.companyname.paylomaui`. La versión de Xcode tiene que ser la que pide el workload de iOS; si hay varias instaladas, se elige con `DEVELOPER_DIR`.
 - `samples/PayloNative` — la misma pantalla de registro con vistas nativas de Android (Java, sin MAUI ni AndroidX), para comprobar que la comparación no depende de MAUI. `./build.ps1` la compila con las herramientas del SDK (sin Gradle) y la instala en el emulador
+- `samples/PayloIos` — la misma pantalla con vistas nativas de iOS (UIKit en Swift, sin MAUI ni storyboard). `./build.sh` la compila con `swiftc` (sin proyecto de Xcode) y la instala en el simulador encendido
 - `tests/Driftcheck.Tests` — pruebas del comparador con pantallas sintéticas
 
 ## Limitaciones actuales (MVP)
