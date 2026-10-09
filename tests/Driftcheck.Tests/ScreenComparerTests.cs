@@ -1,5 +1,5 @@
 using Driftcheck.Mcp;
-using Driftcheck.Mcp.Android;
+using Driftcheck.Mcp.Devices;
 using Driftcheck.Mcp.Comparison;
 using Driftcheck.Mcp.Figma;
 using SkiaSharp;
@@ -10,7 +10,7 @@ namespace Driftcheck.Tests;
 public class ScreenComparerTests : IDisposable
 {
     // Densidad 160 → 1 px = 1 dp, así las cuentas del test son directas.
-    const double Density = 160;
+    const double PixelsPerDp = 1;
     static readonly Rgb Blue = new(0x19, 0x76, 0xD2);
     static readonly Rgb Red = new(0xE5, 0x39, 0x35);
 
@@ -115,7 +115,7 @@ public class ScreenComparerTests : IDisposable
         var png = Path.Combine(_dir, "device.png");
         Draw(png, 400, 800, [(loginColor, login), .. Glyphs(titleInk, new Rect(20, 100 + globalDy, 200, 30))]);
 
-        return new ScreenCapture("test", png, 400, 800, Density,
+        return new ScreenCapture("test", png, 400, 800, PixelsPerDp,
         [
             new ScreenElement("Title", "android.widget.TextView", title, null, new Rect(20, 100 + globalDy, 200, 30)),
             new ScreenElement("Subtitle", "android.widget.TextView", "Hola", null, new Rect(20, 140 + globalDy, 300, 20)),

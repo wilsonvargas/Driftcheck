@@ -14,4 +14,9 @@
     <PackageReference Include="SkiaSharp" Version="4.152.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- UI test que vuelca el árbol de accesibilidad del simulador de iOS; SimulatorClient lo compila la primera vez. -->
+    <None Include="..\..\tools\ios-accessibility-helper\**" Exclude="..\..\tools\ios-accessibility-helper\**\xcuserdata\**" LinkBase="ios-accessibility-helper" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -1,5 +1,5 @@
 using Driftcheck.Mcp;
-using Driftcheck.Mcp.Android;
+using Driftcheck.Mcp.Devices;
 using Driftcheck.Mcp.Comparison;
 using Driftcheck.Mcp.Figma;
 using SkiaSharp;
@@ -13,7 +13,7 @@ namespace Driftcheck.Tests;
 [Collection(OutputDirectoryCollection.Name)]
 public class TextInkTests : IDisposable
 {
-    const double Density = 160;
+    const double PixelsPerDp = 1;
     static readonly SKColor Page = new(0xF5, 0xF5, 0xF5);
     static readonly SKColor Ink = new(0x0D, 0x00, 0x1F);
 
@@ -225,7 +225,7 @@ public class TextInkTests : IDisposable
             using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
             File.WriteAllBytes(devicePng, data.ToArray());
         }
-        var capture = new ScreenCapture("test", devicePng, 380, 800, Density,
+        var capture = new ScreenCapture("test", devicePng, 380, 800, PixelsPerDp,
             [new ScreenElement(null, "android.widget.TextView", "Hola", null, new Rect(20, 98, 340, 24))]);
 
         var result = Compare(design, designPng, capture);
@@ -245,7 +245,7 @@ public class TextInkTests : IDisposable
         new(name, "TEXT", bounds, new Rgb(0x0D, 0x00, 0x1F), text, 16, "Inter", 400, null);
 
     static ScreenCapture Capture(string png, params ScreenElement[] elements) =>
-        new("test", png, 400, 800, Density, elements);
+        new("test", png, 400, 800, PixelsPerDp, elements);
 
     /// <summary>Trazos verticales de 4 de ancho cada 10 que ocupan exactamente <paramref name="area"/>.</summary>
     static void Letters(SKCanvas canvas, Rect area, SKColor color)

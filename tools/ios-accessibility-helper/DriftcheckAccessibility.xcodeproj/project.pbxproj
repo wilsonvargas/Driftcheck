@@ -1,0 +1,156 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		D7000000000000000000000B /* DumpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7000000000000000000000A /* DumpTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D7000000000000000000000A /* DumpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DumpTests.swift; sourceTree = "<group>"; };
+		D7000000000000000000000C /* DriftcheckAccessibilityUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DriftcheckAccessibilityUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D70000000000000000000010 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D70000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				D70000000000000000000002 /* DriftcheckAccessibilityUITests */,
+				D70000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D70000000000000000000002 /* DriftcheckAccessibilityUITests */ = {
+			isa = PBXGroup;
+			children = (
+				D7000000000000000000000A /* DumpTests.swift */,
+			);
+			path = DriftcheckAccessibilityUITests;
+			sourceTree = "<group>";
+		};
+		D70000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D7000000000000000000000C /* DriftcheckAccessibilityUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D70000000000000000000020 /* DriftcheckAccessibilityUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D70000000000000000000031 /* Build configuration list for PBXNativeTarget "DriftcheckAccessibilityUITests" */;
+			buildPhases = (
+				D70000000000000000000011 /* Sources */,
+				D70000000000000000000010 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DriftcheckAccessibilityUITests;
+			productName = DriftcheckAccessibilityUITests;
+			productReference = D7000000000000000000000C /* DriftcheckAccessibilityUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D70000000000000000000040 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1600;
+			};
+			buildConfigurationList = D70000000000000000000030 /* Build configuration list for PBXProject "DriftcheckAccessibility" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D70000000000000000000001;
+			productRefGroup = D70000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D70000000000000000000020 /* DriftcheckAccessibilityUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D70000000000000000000011 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D7000000000000000000000B /* DumpTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		D70000000000000000000050 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D70000000000000000000051 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.driftcheck.accessibility.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D70000000000000000000030 /* Build configuration list for PBXProject "DriftcheckAccessibility" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D70000000000000000000050 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D70000000000000000000031 /* Build configuration list for PBXNativeTarget "DriftcheckAccessibilityUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D70000000000000000000051 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = D70000000000000000000040 /* Project object */;
+}

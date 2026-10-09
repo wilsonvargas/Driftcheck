@@ -2,43 +2,27 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
+using Driftcheck.Mcp.Devices;
 
 namespace Driftcheck.Mcp.Android;
 
-/// <summary>Elemento de la pantalla del dispositivo, en dp.</summary>
-public sealed record ScreenElement(string? Id, string ClassName, string? Text, string? ContentDescription, Rect Bounds);
-
-public sealed record ScreenCapture(
-    string Serial,
-    string ScreenshotPath,
-    int WidthPx,
-    int HeightPx,
-    double Density,
-    IReadOnlyList<ScreenElement> Elements)
+public sealed partial class AdbClient(Settings settings) : IDeviceClient
 {
-    /// <summary>Factor px → dp.</summary>
-    public double PxToDp => 160.0 / Density;
-    public double WidthDp => WidthPx * PxToDp;
-}
+    public DevicePlatform Platform => DevicePlatform.Android;
 
-public sealed partial class AdbClient(Settings settings)
-{
-    public async Task<IReadOnlyList<string>> ListDevicesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DeviceInfo>> ListDevicesAsync(CancellationToken ct = default)
     {
         var output = await RunTextAsync(null, ["devices"], ct);
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Skip(1)
             .Select(l => l.Split('\t'))
             .Where(p => p.Length == 2 && p[1] == "device")
-            .Select(p => p[0])
+            .Select(p => new DeviceInfo(p[0], "Android"))
             .ToList();
     }
 
-    public async Task<ScreenCapture> CaptureAsync(string? serial, CancellationToken ct = default)
+    public async Task<ScreenCapture> CaptureAsync(string serial, CancellationToken ct = default)
     {
-        serial ??= (await ListDevicesAsync(ct)).FirstOrDefault()
-            ?? throw new InvalidOperationException("No hay dispositivos Android conectados. Inicia el emulador o conecta un teléfono.");
-
         Directory.CreateDirectory(settings.OutputDirectory);
         var screenshotPath = Path.Combine(settings.OutputDirectory, $"device_{Sanitize(serial)}.png");
         var png = await RunBytesAsync(serial, ["exec-out", "screencap", "-p"], ct);
@@ -50,7 +34,7 @@ public sealed partial class AdbClient(Settings settings)
         await RunTextAsync(serial, ["shell", "uiautomator", "dump", "/sdcard/window_dump.xml"], ct);
         var xml = await RunTextAsync(serial, ["exec-out", "cat", "/sdcard/window_dump.xml"], ct);
 
-        return new ScreenCapture(serial, screenshotPath, w, h, density, ParseHierarchy(xml, 160.0 / density));
+        return new ScreenCapture(serial, screenshotPath, w, h, density / 160, ParseHierarchy(xml, 160.0 / density));
     }
 
     /// <summary>

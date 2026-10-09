@@ -19,13 +19,16 @@ public static class MauiProgram
 			});
 
 		// Los campos del diseño no tienen el subrayado ni el relleno que Android pone a los EditText
-		// (ni el espacio extra de includeFontPadding, ver el Label más abajo).
+		// (ni el espacio extra de includeFontPadding, ver el Label más abajo), ni el borde redondeado
+		// de los UITextField de iOS.
 		Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("NoUnderline", (handler, _) =>
 		{
 #if ANDROID
 			handler.PlatformView.Background = null;
 			handler.PlatformView.SetPadding(0, 0, 0, 0);
 			handler.PlatformView.SetIncludeFontPadding(false);
+#elif IOS
+			handler.PlatformView.BorderStyle = UIKit.UITextBorderStyle.None;
 #endif
 		});
 
