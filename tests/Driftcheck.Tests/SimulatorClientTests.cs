@@ -45,6 +45,49 @@ public class SimulatorClientTests
     }
 
     [Fact]
+    public void ParsesBootedSimulators()
+    {
+        const string json = """
+            { "devices": {
+                "com.apple.CoreSimulator.SimRuntime.iOS-26-3": [
+                  { "udid": "A1B2", "name": "iPhone 17", "state": "Booted" },
+                  { "udid": "C3D4", "name": "iPhone 17 Pro", "state": "Shutdown" }
+                ] } }
+            """;
+
+        var devices = SimulatorClient.ParseDevices(json);
+
+        Assert.Equal([new DeviceInfo("A1B2", "Simulador de iOS, iPhone 17 (iOS 26.3)")], devices);
+    }
+
+    [Theory]
+    [InlineData("xcrun: error: unable to find utility \"simctl\"")]
+    [InlineData("""{ "devices": { "com.apple.CoreSimulator.SimRuntime.iOS-26-3": [ { "udid": "A1B2", "na""")]
+    [InlineData("""{ "runtimes": [] }""")]
+    [InlineData("""{ "devices": [] }""")]
+    public void UnexpectedSimctlOutputIsAnInvalidOperation(string json)
+    {
+        // DeviceRegistry solo atrapa InvalidOperationException: otra excepción haría fallar también la lista de Android.
+        var e = Assert.Throws<InvalidOperationException>(() => SimulatorClient.ParseDevices(json));
+        Assert.Contains("simctl", e.Message);
+    }
+
+    [Fact]
+    public async Task ProcessThatHangsIsKilledAfterTimeout()
+    {
+        (string file, string[] args) sleep = OperatingSystem.IsWindows()
+            ? ("powershell", ["-NoProfile", "-Command", "Start-Sleep -Seconds 30"])
+            : ("sleep", ["30"]);
+
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var e = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            SimulatorClient.RunTextAsync(sleep.file, sleep.args, null, TimeSpan.FromSeconds(1), CancellationToken.None));
+
+        Assert.Contains("no terminó en 1 s", e.Message);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), $"Tardó {watch.Elapsed}");
+    }
+
+    [Fact]
     public void CaptureUsesPointsAsUnits()
     {
         var capture = new ScreenCapture("udid", "device.png", 1206, 2622, 3, [], DevicePlatform.Ios);

@@ -20,6 +20,12 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
     const string HelperProject = "DriftcheckAccessibility.xcodeproj";
     const string HelperScheme = "DriftcheckAccessibility";
 
+    // Límites para que un simulador trabado (o un xcodebuild esperando algo que nunca llega) no deje la
+    // llamada MCP colgada. Compilar el helper la primera vez tarda unos 15 s y correrlo unos 3 s.
+    static readonly TimeSpan SimctlTimeout = TimeSpan.FromSeconds(30);
+    static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
+    static readonly TimeSpan DumpTimeout = TimeSpan.FromSeconds(90);
+
     /// <summary>Que dos capturas a la vez no compilen el helper dos veces.</summary>
     static readonly SemaphoreSlim BuildLock = new(1, 1);
 
@@ -29,23 +35,40 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
     {
         if (!OperatingSystem.IsMacOS()) return [];
 
-        var json = await RunTextAsync("xcrun", ["simctl", "list", "devices", "booted", "--json"], null, ct);
-        using var doc = JsonDocument.Parse(json);
-        var result = new List<DeviceInfo>();
-        foreach (var runtime in doc.RootElement.GetProperty("devices").EnumerateObject())
+        var json = await RunTextAsync("xcrun", ["simctl", "list", "devices", "booted", "--json"], null, SimctlTimeout, ct);
+        return ParseDevices(json);
+    }
+
+    /// <summary>
+    /// Convierte la salida de <c>simctl list devices --json</c> en dispositivos. Si el formato no es el
+    /// esperado (otra versión de Xcode, salida cortada), lanza InvalidOperationException para que
+    /// DeviceRegistry lo informe como error de iOS sin impedir usar Android.
+    /// </summary>
+    public static IReadOnlyList<DeviceInfo> ParseDevices(string json)
+    {
+        try
         {
-            // "com.apple.CoreSimulator.SimRuntime.iOS-26-3" → "iOS 26.3"
-            var os = RuntimeRegex().Match(runtime.Name) is { Success: true } m
-                ? $"{m.Groups[1].Value} {m.Groups[2].Value.Replace('-', '.')}"
-                : runtime.Name;
-            foreach (var device in runtime.Value.EnumerateArray())
+            using var doc = JsonDocument.Parse(json);
+            var result = new List<DeviceInfo>();
+            foreach (var runtime in doc.RootElement.GetProperty("devices").EnumerateObject())
             {
-                if (device.GetProperty("state").GetString() != "Booted") continue;
-                result.Add(new DeviceInfo(device.GetProperty("udid").GetString()!,
-                    $"Simulador de iOS, {device.GetProperty("name").GetString()} ({os})"));
+                // "com.apple.CoreSimulator.SimRuntime.iOS-26-3" → "iOS 26.3"
+                var os = RuntimeRegex().Match(runtime.Name) is { Success: true } m
+                    ? $"{m.Groups[1].Value} {m.Groups[2].Value.Replace('-', '.')}"
+                    : runtime.Name;
+                foreach (var device in runtime.Value.EnumerateArray())
+                {
+                    if (device.GetProperty("state").GetString() != "Booted") continue;
+                    result.Add(new DeviceInfo(device.GetProperty("udid").GetString()!,
+                        $"Simulador de iOS, {device.GetProperty("name").GetString()} ({os})"));
+                }
             }
+            return result;
         }
-        return result;
+        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            throw new InvalidOperationException($"No entiendo la lista de simuladores de xcrun simctl: {e.Message}", e);
+        }
     }
 
     public async Task<ScreenCapture> CaptureAsync(string udid, CancellationToken ct = default)
@@ -59,7 +82,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
         // La captura va después del árbol: leerlo tarda unos segundos y, si la app recién se abrió, una
         // captura tomada antes puede mostrar todavía la pantalla de inicio.
         var screenshotPath = Path.Combine(settings.OutputDirectory, $"device_{udid}.png");
-        await RunTextAsync("xcrun", ["simctl", "io", udid, "screenshot", "--type=png", screenshotPath], null, ct);
+        await RunTextAsync("xcrun", ["simctl", "io", udid, "screenshot", "--type=png", screenshotPath], null, SimctlTimeout, ct);
 
         using var codec = SKCodec.Create(screenshotPath)
             ?? throw new InvalidOperationException("No pude leer la captura del simulador.");
@@ -118,7 +141,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
 
         // launchctl muestra las apps que están corriendo como "UIKitApplication:{bundle id}[…]"; el helper
         // usa la que está en primer plano.
-        var services = await RunTextAsync("xcrun", ["simctl", "spawn", udid, "launchctl", "list"], null, ct);
+        var services = await RunTextAsync("xcrun", ["simctl", "spawn", udid, "launchctl", "list"], null, SimctlTimeout, ct);
         var bundleIds = AppServiceRegex().Matches(services).Select(m => m.Groups[1].Value).Distinct();
 
         var output = Path.Combine(settings.OutputDirectory, $"accessibility_{udid}.json");
@@ -131,7 +154,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
             {
                 ["TEST_RUNNER_DRIFTCHECK_OUTPUT"] = output,
                 ["TEST_RUNNER_DRIFTCHECK_BUNDLE_IDS"] = string.Join(',', bundleIds),
-            }, ct);
+            }, DumpTimeout, ct);
 
         if (!File.Exists(output))
             throw new InvalidOperationException("El helper de accesibilidad de iOS terminó sin escribir el árbol de la app.");
@@ -158,7 +181,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
 
             await RunTextAsync("xcodebuild",
                 ["build-for-testing", "-project", Path.Combine(source, HelperProject), "-scheme", HelperScheme,
-                 "-destination", "generic/platform=iOS Simulator", "-derivedDataPath", derivedData, "-quiet"], null, ct);
+                 "-destination", "generic/platform=iOS Simulator", "-derivedDataPath", derivedData, "-quiet"], null, BuildTimeout, ct);
 
             return FindXctestrun(products)
                 ?? throw new InvalidOperationException($"xcodebuild no generó el .xctestrun del helper en {products}.");
@@ -190,7 +213,12 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
     static string? Get(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) && v.GetString() is { Length: > 0 } s ? s : null;
 
-    static async Task<string> RunTextAsync(string fileName, string[] args, IDictionary<string, string>? env, CancellationToken ct)
+    /// <summary>
+    /// Ejecuta un proceso y devuelve su salida. Si pasa <paramref name="timeout"/> o se cancela, lo mata
+    /// (con sus hijos: xcodebuild arranca el runner del test) para no dejarlo corriendo.
+    /// </summary>
+    public static async Task<string> RunTextAsync(string fileName, string[] args, IDictionary<string, string>? env,
+        TimeSpan timeout, CancellationToken ct)
     {
         var psi = new ProcessStartInfo(fileName)
         {
@@ -205,9 +233,24 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException($"No se pudo ejecutar {fileName}");
 
-        var stdout = process.StandardOutput.ReadToEndAsync(ct);
-        var stderr = process.StandardError.ReadToEndAsync(ct);
-        await Task.WhenAll(stdout, stderr, process.WaitForExitAsync(ct));
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(timeout);
+
+        var stdout = process.StandardOutput.ReadToEndAsync(limit.Token);
+        var stderr = process.StandardError.ReadToEndAsync(limit.Token);
+        try
+        {
+            await Task.WhenAll(stdout, stderr, process.WaitForExitAsync(limit.Token));
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { } // ya terminó
+            ct.ThrowIfCancellationRequested();
+            throw new InvalidOperationException(
+                $"{fileName} {string.Join(' ', args.Take(2))} no terminó en {timeout.TotalSeconds:0} s. " +
+                "Revisa que el simulador responda (que no esté bloqueado ni mostrando un diálogo) y vuelve a intentarlo.");
+        }
 
         if (process.ExitCode != 0)
         {
