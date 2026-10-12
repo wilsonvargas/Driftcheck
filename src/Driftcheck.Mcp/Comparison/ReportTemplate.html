@@ -44,6 +44,13 @@
   .delta.down { color: var(--missing); background: color-mix(in srgb, var(--missing) 14%, transparent); }
   .delta.same { color: var(--muted); background: var(--chip); }
   .counts { color: var(--muted); font-size: 13px; }
+  .warnings { margin: 16px 24px 0; display: grid; gap: 8px; }
+  .warning {
+    padding: 10px 14px; border-radius: var(--radius); font-size: 13px;
+    border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent);
+    background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  }
+  .warning strong { color: var(--bad); margin-right: 6px; }
   .counts b { color: var(--text); font-weight: 600; }
 
   main { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 16px; padding: 16px 24px; align-items: start; }
@@ -138,6 +145,7 @@
   </div>
   <div class="score" id="score"></div>
 </header>
+<div class="warnings" id="warnings" hidden></div>
 
 <main>
   <section class="card">
@@ -188,7 +196,11 @@ const value = v => /^#[0-9A-F]{6}$/i.test(v) ? `<span class="swatch" style="back
 
 // Encabezado y puntaje
 $("title").textContent = data.title;
-$("meta").textContent = `${data.device} · ${data.date}`;
+$("meta").textContent = [data.device, data.app, data.date].filter(Boolean).join(" · ");
+if (data.warnings.length) {
+  $("warnings").hidden = false;
+  $("warnings").innerHTML = data.warnings.map(w => `<div class="warning" role="alert"><strong>Atención</strong>${md(w)}</div>`).join("");
+}
 const count = s => data.elements.filter(e => e.status === s).length;
 const f = data.fidelity;
 if (f.total > 0) {

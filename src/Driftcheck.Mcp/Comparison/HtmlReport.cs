@@ -13,8 +13,8 @@ public static class HtmlReport
 {
     /// <param name="PixelsPerUnit">Para pasar las cajas (en dp o pt) a píxeles de las imágenes.</param>
     public sealed record Model(
-        string Title, string Device, DateTime At, double PixelsPerUnit, int Width, int Height,
-        FidelityScore Fidelity, double MismatchRatio, IReadOnlyList<ElementResult> Elements,
+        string Title, string Device, string? App, DateTime At, double PixelsPerUnit, int Width, int Height,
+        FidelityScore Fidelity, double MismatchRatio, IReadOnlyList<string> Warnings, IReadOnlyList<ElementResult> Elements,
         byte[] DesignPng, byte[] AppPng, byte[] DiffPng);
 
     static readonly Lazy<string> Template = new(() =>
@@ -34,6 +34,8 @@ public static class HtmlReport
         {
             title = m.Title,
             device = m.Device,
+            app = m.App,
+            warnings = m.Warnings,
             date = m.At.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
             width = m.Width,
             height = m.Height,

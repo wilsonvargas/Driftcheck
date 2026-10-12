@@ -6,6 +6,18 @@ public enum DevicePlatform { Android, Ios }
 /// <param name="Id">AutomationId: el resource-id en Android, el accessibilityIdentifier en iOS.</param>
 public sealed record ScreenElement(string? Id, string ClassName, string? Text, string? ContentDescription, Rect Bounds);
 
+/// <summary>App que estaba en primer plano al tomar la captura.</summary>
+/// <param name="Id">Paquete en Android, bundle id en iOS.</param>
+/// <param name="DeployedAt">
+/// Última vez que se instaló o actualizó, en hora local. En MAUI Debug cuenta también cuando Fast Deployment
+/// copió los ensamblados sin reinstalar el APK. Null si no se pudo leer.
+/// </param>
+public sealed record AppInfo(string Id, string? Version, DateTime? DeployedAt)
+{
+    public override string ToString() =>
+        Id + (Version is null ? "" : $" {Version}") + (DeployedAt is { } d ? $", instalada el {d:yyyy-MM-dd HH:mm}" : "");
+}
+
 /// <param name="PixelsPerUnit">Píxeles de la captura por unidad lógica: densidad / 160 en Android, la escala de la pantalla (2 o 3) en iOS.</param>
 public sealed record ScreenCapture(
     string Serial,
@@ -14,7 +26,8 @@ public sealed record ScreenCapture(
     int HeightPx,
     double PixelsPerUnit,
     IReadOnlyList<ScreenElement> Elements,
-    DevicePlatform Platform = DevicePlatform.Android)
+    DevicePlatform Platform = DevicePlatform.Android,
+    AppInfo? App = null)
 {
     /// <summary>Factor px → unidad lógica.</summary>
     public double PxToUnit => 1 / PixelsPerUnit;

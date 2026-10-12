@@ -9,6 +9,8 @@ Servidor MCP local que compara la pantalla de una app móvil (Android, o el simu
 2. Captura el dispositivo:
    - **Android**: `adb` (`screencap` + `uiautomator dump`). El `AutomationId` es el `resource-id`.
    - **Simulador de iOS** (solo macOS): `xcrun simctl io screenshot` y el árbol de accesibilidad de la app en primer plano, que lee un UI test de XCUITest (`tools/ios-accessibility-helper`). Se compila solo la primera vez (unos 15 s); después cada captura tarda unos 3 s. El `AutomationId` es el `accessibilityIdentifier`.
+   - Lee también qué app está en primer plano, su versión y cuándo se instaló (en MAUI Debug, cuándo Fast Deployment copió los ensamblados). Si `compare_screen` recibe `projectPath` y el proyecto tiene archivos más nuevos que la app instalada, el reporte avisa que falta compilar e instalar.
+   - Si la captura no se parece al diseño (más de la mitad de los píxeles distintos, o ningún elemento emparejado), es casi siempre una pantalla de carga: el splash de .NET sigue encima unos segundos aunque `uiautomator` ya liste la app. Se espera y se vuelve a capturar hasta 3 veces; si sigue igual, el reporte lo avisa.
 3. Compara 1:1 en dp o pt (1 unidad de Figma = 1 dp en Android = 1 pt en iOS). Si el dispositivo es algo más ancho o angosto que el frame (411 vs 430), cada elemento se compara anclado a la izquierda, a la derecha, centrado o estirado, según cuál se ajuste mejor. Solo si la diferencia de ancho supera ~33 % (diseño @2x, tablet) se escala el diseño.
 4. Empareja capas de Figma con elementos de la app en tres pasadas:
    1. **Nombre de capa = `AutomationId`** (sin distinguir espacios ni mayúsculas: `Login Button` ↔ `LoginButton`), solo si el nombre no se repite en el diseño.

@@ -34,7 +34,73 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
         await RunTextAsync(serial, ["shell", "uiautomator", "dump", "/sdcard/window_dump.xml"], ct);
         var xml = await RunTextAsync(serial, ["exec-out", "cat", "/sdcard/window_dump.xml"], ct);
 
-        return new ScreenCapture(serial, screenshotPath, w, h, density / 160, ParseHierarchy(xml, 160.0 / density));
+        var app = ParseForegroundPackage(xml) is { } package ? await GetAppInfoAsync(serial, package, ct) : null;
+        return new ScreenCapture(serial, screenshotPath, w, h, density / 160, ParseHierarchy(xml, 160.0 / density),
+            DevicePlatform.Android, app);
+    }
+
+    /// <summary>
+    /// Paquete de la app en primer plano: el de los nodos del árbol de uiautomator que no son de la barra
+    /// del sistema. Null si no hay ninguno.
+    /// </summary>
+    public static string? ParseForegroundPackage(string xml)
+    {
+        var start = xml.IndexOf("<?xml", StringComparison.Ordinal);
+        if (start < 0) start = xml.IndexOf("<hierarchy", StringComparison.Ordinal);
+        if (start < 0) return null;
+
+        return XDocument.Parse(xml[start..]).Descendants("node")
+            .Select(n => (string?)n.Attribute("package"))
+            .Where(p => !string.IsNullOrEmpty(p) && p != "com.android.systemui")
+            .GroupBy(p => p)
+            .MaxBy(g => g.Count())?.Key;
+    }
+
+    /// <summary>
+    /// Versión y fecha de instalación de la app. Es solo para el reporte: si falla (un dispositivo raro, una
+    /// app del sistema), la captura sigue sin esos datos.
+    /// </summary>
+    async Task<AppInfo?> GetAppInfoAsync(string serial, string package, CancellationToken ct)
+    {
+        if (!PackageRegex().IsMatch(package)) return null;
+
+        // Todo en un solo "adb shell" para no sumar tiempo a cada captura. La fecha sale de stat (segundos
+        // desde 1970), no de lastUpdateTime, que viene en la zona horaria del dispositivo. En MAUI Debug,
+        // Fast Deployment copia los ensamblados a files/.__override__ sin reinstalar: run-as los lee si la
+        // app es depurable, y si no, falla sin escribir nada.
+        var script =
+            $"dumpsys package {package} | grep -E 'versionName=|versionCode='; " +
+            $"echo apk $(stat -c %Y $(pm path {package} | head -1 | cut -d: -f2)); " +
+            $"echo override $(run-as {package} sh -c 'stat -c %Y files/.__override__/* files/.__override__/*/*' 2>/dev/null | sort -n | tail -1)";
+        try
+        {
+            return ParseAppInfo(package, await RunTextAsync(serial, ["shell", script], ct));
+        }
+        catch (InvalidOperationException)
+        {
+            return new AppInfo(package, null, null);
+        }
+    }
+
+    public static AppInfo ParseAppInfo(string package, string output)
+    {
+        var name = VersionNameRegex().Match(output) is { Success: true } n ? n.Groups[1].Value : null;
+        var code = VersionCodeRegex().Match(output) is { Success: true } c ? c.Groups[1].Value : null;
+        var version = (name, code) switch
+        {
+            (null, null) => null,
+            (_, null) => name,
+            (null, _) => $"({code})",
+            _ => $"{name} ({code})",
+        };
+
+        var deployed = DeployTimeRegex().Matches(output)
+            .Select(m => long.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture))
+            .DefaultIfEmpty()
+            .Max();
+
+        return new AppInfo(package, version,
+            deployed > 0 ? DateTimeOffset.FromUnixTimeSeconds(deployed).LocalDateTime : null);
     }
 
     /// <summary>
@@ -167,4 +233,16 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
 
     [GeneratedRegex(@"size:\s*(\d+)x(\d+)")]
     private static partial Regex SizeRegex();
+
+    [GeneratedRegex(@"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$")]
+    private static partial Regex PackageRegex();
+
+    [GeneratedRegex(@"versionName=(\S+)")]
+    private static partial Regex VersionNameRegex();
+
+    [GeneratedRegex(@"versionCode=(\d+)")]
+    private static partial Regex VersionCodeRegex();
+
+    [GeneratedRegex(@"^(?:apk|override) (\d+)\s*$", RegexOptions.Multiline)]
+    private static partial Regex DeployTimeRegex();
 }
