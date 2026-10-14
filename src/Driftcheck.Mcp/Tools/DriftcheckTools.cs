@@ -64,7 +64,8 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
         sb.AppendLine();
         if (frame.CachedAt is { } cachedAt)
             sb.AppendLine($"Diseño tomado de la caché local (descargado el {cachedAt:yyyy-MM-dd HH:mm}). Usa refresh=true si cambió en Figma.");
-        sb.AppendLine("compare_screen empareja por texto visible; para capas sin texto usa el nombre de la capa como AutomationId.");
+        sb.AppendLine("compare_screen empareja los textos por texto visible y busca las capas sin texto (botones, campos, líneas, " +
+                      "íconos, imágenes) por cómo se ven; también empareja por nombre de capa = AutomationId.");
         sb.AppendLine();
         sb.AppendLine("| Capa | Tipo | x | y | ancho | alto | fondo | radio | texto | fuente |");
         sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
@@ -76,6 +77,21 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
                 ? $"{e.FontFamily} {F(fs * scale)} w{e.FontWeight:0}"
                 : "";
             sb.AppendLine($"| {e.Name} | {e.Type} | {F(b.X)} | {F(b.Y)} | {F(b.Width)} | {F(b.Height)} | {e.Fill?.Hex} | {(e.CornerRadius is { } r ? F(r * scale) : "")} | {Escape(e.Text)} | {font} |");
+        }
+
+        if (frame.Shapes is { Count: > 0 } shapes)
+        {
+            sb.AppendLine();
+            sb.AppendLine("## Capas sin texto que se ven");
+            sb.AppendLine();
+            sb.AppendLine("| Capa | Qué es | x | y | ancho | alto | fondo | borde | radio |");
+            sb.AppendLine("|---|---|---|---|---|---|---|---|---|");
+            foreach (var e in shapes)
+            {
+                var b = e.Bounds.Scale(scale);
+                var kind = e.Shape switch { ShapeKind.Icon => e.MultiColor ? "ícono de varios colores" : "ícono", ShapeKind.Image => "imagen", _ => "forma" };
+                sb.AppendLine($"| {Escape(e.Name)} | {kind} | {F(b.X)} | {F(b.Y)} | {F(b.Width)} | {F(b.Height)} | {e.Fill?.Hex} | {e.Stroke?.Hex} | {(e.CornerRadius is { } r ? F(r * scale) : "")} |");
+            }
         }
 
         return sb.ToString();
@@ -107,7 +123,8 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
     [McpServerTool(Name = "compare_screen"), Description(
         "Compara la pantalla actual de la app en el dispositivo (Android o simulador de iOS) con un frame de Figma. " +
         "Empareja capas de Figma con elementos de la app por texto visible, nombre = AutomationId o posición, y reporta diferencias de posición, tamaño, " +
-        "texto y color de fondo, con la fidelidad (% de elementos como en Figma, y cuánto cambió desde la comparación anterior) " +
+        "texto y color de fondo. Las capas sin texto (botones, campos, líneas, íconos, imágenes) se buscan en la captura por " +
+        "cómo se ven y se comparan caja, relleno, radio de las esquinas, borde y contenido. Reporta la fidelidad (% de elementos como en Figma, y cuánto cambió desde la comparación anterior) " +
         "y cómo corregir cada diferencia con las propiedades del framework. Genera report.html (reporte interactivo para " +
         "mostrarle al usuario), side_by_side.png y diff.png (en diff.png: verde = coincide, naranja = difiere, " +
         "punteado azul = dónde debería estar según Figma). Abre las imágenes para una revisión visual. " +
