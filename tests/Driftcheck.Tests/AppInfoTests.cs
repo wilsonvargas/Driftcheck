@@ -57,6 +57,23 @@ public class AppInfoTests : IDisposable
     }
 
     [Fact]
+    public void AndroidAppWithoutVersionHasNoVersion()
+    {
+        // Sin versionName ni versionCode en el manifiesto, dumpsys escribe "null" y "0".
+        const string output = """
+                versionCode=0 minSdk=24 targetSdk=35
+                versionName=null
+            apk 1791562174
+            override
+            """;
+
+        var app = AdbClient.ParseAppInfo("com.driftcheck.paylonative", output);
+
+        Assert.Null(app.Version);
+        Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1791562174).LocalDateTime, app.DeployedAt);
+    }
+
+    [Fact]
     public void ParsesSimctlAppInfo()
     {
         const string output = """

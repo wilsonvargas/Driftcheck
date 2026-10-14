@@ -84,8 +84,9 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
 
     public static AppInfo ParseAppInfo(string package, string output)
     {
-        var name = VersionNameRegex().Match(output) is { Success: true } n ? n.Groups[1].Value : null;
-        var code = VersionCodeRegex().Match(output) is { Success: true } c ? c.Groups[1].Value : null;
+        // Una app que no declara versión sale en dumpsys como "versionName=null" y "versionCode=0".
+        var name = VersionNameRegex().Match(output) is { Success: true } n && n.Groups[1].Value != "null" ? n.Groups[1].Value : null;
+        var code = VersionCodeRegex().Match(output) is { Success: true } c && c.Groups[1].Value != "0" ? c.Groups[1].Value : null;
         var version = (name, code) switch
         {
             (null, null) => null,
