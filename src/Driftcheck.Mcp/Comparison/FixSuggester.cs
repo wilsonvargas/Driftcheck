@@ -38,9 +38,28 @@ public static class FixSuggester
             "width" => Size(fw, unit, diff.Expected, width: true),
             "height" => Size(fw, unit, diff.Expected, width: false),
             "text" => SetText(fw, diff.Expected),
-            "background" when Rgb.TryParse(diff.Expected, out var c) => Background(fw, c),
+            "background" when Rgb.TryParse(diff.Expected, out var c) => FigmaColor(d.Fill, c, x => Background(fw, x)),
             "text color" when Rgb.TryParse(diff.Expected, out var c) => TextColor(fw, c),
+            "corner radius" => CornerRadius(fw, unit, diff.Expected),
+            "border" when Rgb.TryParse(diff.Expected, out var c) => Border(fw, c),
+            "icon color" when Rgb.TryParse(diff.Expected, out var c) => FigmaColor(d.Fill, c, x => IconColor(fw, x)),
+            "image" => d.Shape == ShapeKind.Icon
+                ? "El ícono no se ve como en Figma: revisa que sea el mismo recurso (exporta el vector de la capa)"
+                : "La imagen no se ve como en Figma: revisa que sea el mismo recurso y cómo se escala (Aspect)",
             _ => null,
+        };
+    }
+
+    /// <summary>Sugerencia para una forma, un ícono o una imagen del diseño que no está en la app.</summary>
+    public static string AddShape(UiFramework fw, string unit, DesignElement d)
+    {
+        var size = $"{N(d.Bounds.Width)}×{N(d.Bounds.Height)} {unit}";
+        return d.Shape switch
+        {
+            ShapeKind.Icon => $"Falta un ícono de {size}",
+            ShapeKind.Image => $"Falta una imagen de {size}",
+            _ when Math.Min(d.Bounds.Width, d.Bounds.Height) <= 2 => $"Falta una línea de {size}" + (d.Fill is { } f ? $" ({f.Hex})" : ""),
+            _ => $"Falta una forma de {size}" + (d.Fill is { } f && fw != UiFramework.Generic ? $": {Background(fw, f)}" : d.Fill is { } g ? $" con fondo {g.Hex}" : ""),
         };
     }
 
@@ -164,6 +183,48 @@ public static class FixSuggester
         UiFramework.SwiftUI => $"`.foregroundStyle({SwiftUIColor(c)})`",
         UiFramework.Flutter => $"`TextStyle(color: {FlutterColor(c)})`",
         _ => $"Color de texto {c.Hex}",
+    };
+
+    /// <summary>
+    /// El color se compara como se ve en el render, pero en el código va el de Figma: un botón deshabilitado al
+    /// 30 % se ve #DBC6F8 aunque su fondo sea #9E56FF.
+    /// </summary>
+    static string FigmaColor(Rgb? figma, Rgb rendered, Func<Rgb, string> suggest) =>
+        figma is { } f && f.DistanceTo(rendered) > 8
+            ? $"{suggest(f)} (en el diseño se ve {rendered.Hex}: la capa o un contenedor tiene opacidad)"
+            : suggest(rendered);
+
+    static string CornerRadius(UiFramework fw, string unit, string r) => fw switch
+    {
+        UiFramework.Maui => $"`CornerRadius=\"{r}\"` (en un `Border`, `StrokeShape=\"RoundRectangle {r}\"`)",
+        UiFramework.AndroidViews => $"`app:cornerRadius=\"{r}dp\"` (o `android:radius` en el `<corners>` del drawable)",
+        UiFramework.Compose => $"`RoundedCornerShape({r}.dp)`",
+        UiFramework.UIKit => $"`layer.cornerRadius = {r}`",
+        UiFramework.SwiftUI => $"`.clipShape(RoundedRectangle(cornerRadius: {r}))`",
+        UiFramework.Flutter => $"`BorderRadius.circular({r})`",
+        _ => $"Radio de las esquinas de {r} {unit}",
+    };
+
+    static string Border(UiFramework fw, Rgb c) => fw switch
+    {
+        UiFramework.Maui => $"`Stroke=\"{c.Hex}\"` en el `Border` (o `BorderColor` en un `Button`)",
+        UiFramework.AndroidViews => $"`app:strokeColor=\"{c.Hex}\"` (o `<stroke android:color=\"{c.Hex}\" />` en el drawable)",
+        UiFramework.Compose => $"`Modifier.border(1.dp, {ComposeColor(c)}, shape)`",
+        UiFramework.UIKit => $"`layer.borderColor = {UIColor(c)}.cgColor`",
+        UiFramework.SwiftUI => $"`.overlay(RoundedRectangle(cornerRadius: …).stroke({SwiftUIColor(c)}))`",
+        UiFramework.Flutter => $"`Border.all(color: {FlutterColor(c)})`",
+        _ => $"Borde de color {c.Hex}",
+    };
+
+    static string IconColor(UiFramework fw, Rgb c) => fw switch
+    {
+        UiFramework.Maui => $"`Color=\"{c.Hex}\"` en el `FontImageSource` (o `IconTintColorBehavior`)",
+        UiFramework.AndroidViews => $"`app:tint=\"{c.Hex}\"`",
+        UiFramework.Compose => $"`tint = {ComposeColor(c)}`",
+        UiFramework.UIKit => $"`tintColor = {UIColor(c)}`",
+        UiFramework.SwiftUI => $"`.foregroundStyle({SwiftUIColor(c)})`",
+        UiFramework.Flutter => $"`Icon(…, color: {FlutterColor(c)})`",
+        _ => $"Color del ícono {c.Hex}",
     };
 
     static string FontDescription(DesignElement d)

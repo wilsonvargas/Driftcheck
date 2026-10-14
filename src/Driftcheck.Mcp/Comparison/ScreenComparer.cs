@@ -68,9 +68,16 @@ public sealed partial class ScreenComparer(Settings settings)
         var match = ElementMatcher.Match(design.Elements, capture.Elements, scale);
         var (pairs, missing) = (match.Pairs, match.Missing);
 
+        // Una forma con AutomationId se compara como forma (radio, borde, contenido); del emparejamiento solo
+        // queda el AutomationId para el reporte.
+        var shapeIds = (design.Shapes ?? []).Select(s => s.NodeId).OfType<string>().ToHashSet();
+        var shapeAutomationIds = pairs.Where(p => p.Design.NodeId is { } id && shapeIds.Contains(id))
+            .ToDictionary(p => p.Design.NodeId!, p => p.Screen.Id);
+        pairs = pairs.Where(p => p.Design.NodeId is not { } id || !shapeIds.Contains(id)).ToList();
+
         var pixels = screenshot.Pixels;
         var designPixels = designPng.Pixels;
-        var designPxPerUnit = designPng.Width / design.Bounds.Width;
+        var designPxPerUnit = RenderScale(designPng.Width, design.Bounds.Width);
 
         // En un texto se comparan las letras visibles, no las cajas: la capa de Figma se ajusta al texto,
         // pero en la app el texto suele estar dentro de una vista más ancha (un TextView que ocupa toda la
@@ -99,29 +106,28 @@ public sealed partial class ScreenComparer(Settings settings)
         if (Math.Abs(extraWidth) > tolerance) dx = 0;
 
         var expectedBounds = new Dictionary<DesignElement, Rect>(ReferenceEqualityComparer.Instance);
-        var actualBounds = new Dictionary<DesignElement, Rect>(ReferenceEqualityComparer.Instance);
 
         var diffs = new List<ElementDiff>();
         var badElements = new HashSet<DesignElement>(ReferenceEqualityComparer.Instance);
         var elements = new List<ElementResult>();
 
+        void AddDiff(DesignElement d, string label, List<ElementDiff> elementDiffs, string prop, string exp, string act)
+        {
+            var diff = new ElementDiff(label, prop, exp, act);
+            diff = diff with { Fix = FixSuggester.Suggest(framework, capture.Unit, d, diff) };
+            diffs.Add(diff);
+            elementDiffs.Add(diff);
+            badElements.Add(d);
+        }
+
         foreach (var (d, s, designBox, actual, designInk, appInk) in measured)
         {
-            if (designInk is not null && appInk is not null) actualBounds[d] = actual;
-
             var expected = FitHorizontally(designBox.Scale(scale).Offset(dx, dy), extraWidth, actual);
             expectedBounds[d] = expected;
             var label = Label(d);
             var elementDiffs = new List<ElementDiff>();
 
-            void Add(string prop, string exp, string act)
-            {
-                var diff = new ElementDiff(label, prop, exp, act);
-                diff = diff with { Fix = FixSuggester.Suggest(framework, capture.Unit, d, diff) };
-                diffs.Add(diff);
-                elementDiffs.Add(diff);
-                badElements.Add(d);
-            }
+            void Add(string prop, string exp, string act) => AddDiff(d, label, elementDiffs, prop, exp, act);
 
             void Check(string prop, double exp, double act, double allowed)
             {
@@ -181,6 +187,46 @@ public sealed partial class ScreenComparer(Settings settings)
                 FixSuggester.AddText(framework, m)));
         }
 
+        // Lo que se redibuja en el diseño alineado: dónde está en el diseño, dónde va y el color con que se borra
+        // (null: el dominante del recorte, que en un texto es el fondo detrás de las letras).
+        var placed = measured.Select(m => (m.Design, m.DesignBox, m.Actual, Erase: (Rgb?)null)).ToList();
+
+        var shapeContext = new ShapeContext(
+            new PixelImage(designPixels, designPng.Width, designPng.Height), designPng, designPxPerUnit,
+            new PixelImage(pixels, screenshot.Width, screenshot.Height), screenshot, pxToDp,
+            scale, dx, dy, extraWidth, tolerance, colorTolerance);
+
+        if (ScreenBackground(design, shapeContext) is var (designBackground, appBackground))
+        {
+            var page = new DesignElement("Fondo de la pantalla", "FRAME", design.Bounds, design.Background, null, null, null, null, null);
+            var screenBox = new Rect(0, 0, screenshot.Width * pxToDp, screenshot.Height * pxToDp);
+            var elementDiffs = new List<ElementDiff>();
+            if (appBackground.DistanceTo(designBackground) > colorTolerance)
+                AddDiff(page, page.Name, elementDiffs, "background", designBackground.Hex, appBackground.Hex);
+            elements.Add(new ElementResult(page.Name, null, elementDiffs.Count == 0 ? ElementStatus.Ok : ElementStatus.Differs,
+                screenBox, screenBox, elementDiffs));
+        }
+
+        var shapes = CompareShapes(design, shapeContext);
+        foreach (var check in shapes.Checks)
+        {
+            var d = check.Design;
+            var automationId = d.NodeId is { } nodeId ? shapeAutomationIds.GetValueOrDefault(nodeId) : null;
+            if (check.Actual is not { } actual)
+            {
+                elements.Add(new ElementResult(check.Label, automationId, ElementStatus.Missing, check.Expected, null, [],
+                    FixSuggester.AddShape(framework, capture.Unit, d)));
+                continue;
+            }
+
+            expectedBounds[d] = check.Expected;
+            var elementDiffs = new List<ElementDiff>();
+            foreach (var (prop, exp, act) in check.Diffs) AddDiff(d, check.Label, elementDiffs, prop, exp, act);
+            elements.Add(new ElementResult(check.Label, automationId, elementDiffs.Count == 0 ? ElementStatus.Ok : ElementStatus.Differs,
+                check.Expected, actual, elementDiffs));
+            placed.Add((d, check.DesignBox, actual, check.Background));
+        }
+
         var runDir = Path.Combine(settings.OutputDirectory, RunHistory.NewRunDirName(DateTime.Now));
         Directory.CreateDirectory(runDir);
 
@@ -189,7 +235,7 @@ public sealed partial class ScreenComparer(Settings settings)
             elements.Count(e => e.Status == ElementStatus.Ok), elements.Count, previous?.Percent);
 
         // El PNG de Figma, al tamaño en dp del diseño, centrado y desplazado para superponerse a la captura.
-        var destWidth = (float)(design.Bounds.Width * scale / pxToDp);
+        var destWidth = (float)(designPng.Width / designPxPerUnit * scale / pxToDp);
         var destLeft = (float)((dx + extraWidth / 2) / pxToDp);
         var dyPx = (float)(dy / pxToDp);
         using var alignedDesign = new SKBitmap(screenshot.Width, screenshot.Height);
@@ -208,12 +254,13 @@ public sealed partial class ScreenComparer(Settings settings)
             // Primero los grandes, encima los textos.
             const double Margin = 2;
             var baseScale = destWidth / designPng.Width;
-            var byArea = measured.OrderByDescending(m => m.DesignBox.Width * m.DesignBox.Height).ToList();
+            var byArea = placed.OrderByDescending(m => m.DesignBox.Width * m.DesignBox.Height).ToList();
             var crops = byArea.Select(m => m.DesignBox.Inflate(Margin).Scale(designPxPerUnit)).ToList();
 
-            foreach (var source in crops)
+            for (var i = 0; i < byArea.Count; i++)
             {
-                if (SampleDominantColor(designPixels, designPng.Width, designPng.Height, source, inset: 0) is not { } background) continue;
+                var source = crops[i];
+                if ((byArea[i].Erase ?? SampleDominantColor(designPixels, designPng.Width, designPng.Height, source, inset: 0)) is not { } background) continue;
                 using var fill = new SKPaint { Color = new SKColor(background.R, background.G, background.B) };
                 canvas.DrawRect(SKRect.Create(destLeft + (float)(source.X * baseScale), dyPx + (float)(source.Y * baseScale),
                     (float)(source.Width * baseScale), (float)(source.Height * baseScale)), fill);
@@ -222,14 +269,15 @@ public sealed partial class ScreenComparer(Settings settings)
             for (var i = 0; i < byArea.Count; i++)
             {
                 var m = byArea[i];
-                var placed = badElements.Contains(m.Design) ? expectedBounds[m.Design] : m.Actual;
-                var target = placed.Inflate(Margin * scale).Scale(1 / pxToDp);
+                var at = badElements.Contains(m.Design) ? expectedBounds[m.Design] : m.Actual;
+                var target = at.Inflate(Margin * scale).Scale(1 / pxToDp);
                 canvas.DrawImage(image, ToSk(crops[i]), ToSk(target), sampling);
             }
         }
 
         var diffPath = Path.Combine(runDir, "diff.png");
-        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, pairs, badElements, expectedBounds, actualBounds, pxToDp, diffPath);
+        var mismatchRatio = WriteDiffImage(screenshot, alignedDesign, placed.Select(p => (p.Design, p.Actual)).ToList(),
+            badElements, expectedBounds, pxToDp, diffPath);
         WriteSideBySide(alignedDesign, screenshot, Path.Combine(runDir, "side_by_side.png"));
 
         var looksLikeLoadingScreen = mismatchRatio > LoadingScreenMismatch || (pairs.Count == 0 && missingText.Count > 0);
@@ -242,7 +290,7 @@ public sealed partial class ScreenComparer(Settings settings)
         if (warnings is not null) allWarnings.AddRange(warnings);
 
         var htmlPath = Path.Combine(runDir, "report.html");
-        var report = BuildReport(design, capture, scale, extraWidth, dx, dy, pairs, missing, missingText, statusBarClock,
+        var report = BuildReport(design, capture, scale, extraWidth, dx, dy, pairs, missingText, statusBarClock, shapes,
             diffs, elements, fidelity, mismatchRatio, allWarnings, runDir, htmlPath);
         File.WriteAllText(Path.Combine(runDir, "report.md"), report);
 
@@ -281,26 +329,51 @@ public sealed partial class ScreenComparer(Settings settings)
     }
 
     /// <summary>
+    /// Píxeles del PNG del diseño por unidad. Es la escala con que se exportó (2x), redondeada a medios: si una
+    /// capa se sale del frame sin recorte (una barra de estado de 430 puesta en x=1), Figma agranda el render
+    /// y dividir los anchos daría 2.005, que corre medio píxel por cada 100 unidades.
+    /// </summary>
+    public static double RenderScale(int pngWidth, double frameWidth) =>
+        Math.Max(0.5, Math.Round(pngWidth / frameWidth * 2) / 2);
+
+    /// <summary>
     /// Posición horizontal esperada cuando el dispositivo tiene <paramref name="extraWidth"/> dp más que el
     /// frame. Un elemento puede estar anclado a la izquierda, a la derecha, centrado o estirado de borde a
     /// borde; como el diseño no lo dice de forma fiable, se usa la interpretación que mejor explica la app.
     /// </summary>
-    public static Rect FitHorizontally(Rect design, double extraWidth, Rect actual)
+    public static Rect FitHorizontally(Rect design, double extraWidth, Rect actual) =>
+        Closest(HorizontalOptions(design, extraWidth), actual);
+
+    static Rect Closest(IEnumerable<Rect> options, Rect actual) =>
+        options.MinBy(o => Math.Abs(o.X - actual.X) + Math.Abs(o.Width - actual.Width));
+
+    /// <summary>
+    /// Dónde puede estar un elemento según cómo se ancle. Uno que crece en una fila se estira su parte del
+    /// sobrante y se corre lo que crecieron los de su izquierda (en partes iguales, la i-ésima parte).
+    /// </summary>
+    /// <param name="widthShare">Si crece en una fila de Auto Layout, la parte del sobrante que le toca (ver <see cref="DesignElement.WidthShare"/>).</param>
+    public static IReadOnlyList<Rect> HorizontalOptions(Rect design, double extraWidth, double? widthShare = null)
     {
-        Rect[] options =
+        List<Rect> options =
         [
             design,
             design.Offset(extraWidth, 0),
             design.Offset(extraWidth / 2, 0),
             design with { Width = design.Width + extraWidth },
         ];
-        return options.MinBy(o => Math.Abs(o.X - actual.X) + Math.Abs(o.Width - actual.Width));
+        if (widthShare is > 0 and < 1 and { } share)
+        {
+            var part = extraWidth * share;
+            for (var i = 0; i < Math.Round(1 / share); i++)
+                options.Add(new Rect(design.X + i * part, design.Y, design.Width + part, design.Height));
+        }
+        return options;
     }
 
     static double WriteDiffImage(
         SKBitmap screenshot, SKBitmap design,
-        IReadOnlyList<ElementPair> pairs, HashSet<DesignElement> bad,
-        Dictionary<DesignElement, Rect> expected, Dictionary<DesignElement, Rect> actualOverrides, double pxToDp, string path)
+        IReadOnlyList<(DesignElement Design, Rect Actual)> boxes, HashSet<DesignElement> bad,
+        Dictionary<DesignElement, Rect> expected, double pxToDp, string path)
     {
         const int threshold = 40;
         var a = screenshot.Pixels;
@@ -345,9 +418,9 @@ public sealed partial class ScreenComparer(Settings settings)
         using (var ko = new SKPaint { Color = new SKColor(230, 120, 0), Style = SKPaintStyle.Stroke, StrokeWidth = 5 })
         using (var dashed = new SKPaint { Color = new SKColor(40, 90, 230), Style = SKPaintStyle.Stroke, StrokeWidth = 3, PathEffect = SKPathEffect.CreateDash([12, 8], 0) })
         {
-            foreach (var (d, s, _) in pairs)
+            foreach (var (d, box) in boxes)
             {
-                var actual = actualOverrides.GetValueOrDefault(d, s.Bounds).Scale(1 / pxToDp);
+                var actual = box.Scale(1 / pxToDp);
                 canvas.DrawRect(ToSk(actual), bad.Contains(d) ? ko : ok);
 
                 if (bad.Contains(d))
@@ -554,7 +627,7 @@ public sealed partial class ScreenComparer(Settings settings)
 
     static string BuildReport(
         DesignFrame design, ScreenCapture capture, double scale, double extraWidth, double dx, double dy, IReadOnlyList<ElementPair> pairs,
-        IReadOnlyList<DesignElement> missing, List<DesignElement> missingText, List<DesignElement> statusBarClock,
+        List<DesignElement> missingText, List<DesignElement> statusBarClock, ShapeComparison shapes,
         List<ElementDiff> diffs, List<ElementResult> elements, FidelityScore fidelity, double mismatchRatio, List<string> warnings,
         string runDir, string htmlPath)
     {
@@ -574,7 +647,7 @@ public sealed partial class ScreenComparer(Settings settings)
                 var c => $" · antes {fidelity.Previous} % ({c})",
             };
             sb.AppendLine($"**Fidelidad: {fidelity.Percent} %**{change} — {fidelity.Correct} de {fidelity.Total} elementos como en Figma " +
-                          "(los emparejados sin diferencias, sobre los emparejados más los textos del diseño que faltan en la app)");
+                          "(los textos y las capas sin texto que se ven sin diferencias, sobre todos los comparados más los que faltan en la app)");
             sb.AppendLine();
         }
         foreach (var warning in warnings)
@@ -600,6 +673,11 @@ public sealed partial class ScreenComparer(Settings settings)
                       "(no por las cajas: en la app suelen estar dentro de vistas más anchas). En el ancho se tolera un 2.5 %.");
         sb.AppendLine($"- Elementos emparejados: {pairs.Count} de {design.Elements.Count} capas " +
                       $"(por AutomationId {Count(MatchMethod.Name)}, por texto {Count(MatchMethod.Text)}, por posición {Count(MatchMethod.Position)})");
+        if (shapes.Checks.Count > 0)
+            sb.AppendLine($"- Capas sin texto (formas, íconos, imágenes): {shapes.Checks.Count}, buscadas en la captura por cómo se ven " +
+                          "y medidas igual que en el render del diseño (caja, relleno, radio, borde y contenido)");
+        if (shapes.DeviceChrome > 0)
+            sb.AppendLine($"- Se ignoraron {shapes.DeviceChrome} capas de la barra de estado y del indicador de inicio que dibuja el diseño");
         sb.AppendLine($"- Píxeles distintos: {mismatchRatio:P1}");
         sb.AppendLine($"- Imágenes: {runDir}");
         sb.AppendLine();
@@ -654,11 +732,21 @@ public sealed partial class ScreenComparer(Settings settings)
             if (missingText.Count > 40) sb.AppendLine($"- … y {missingText.Count - 40} más");
         }
 
-        var missingOther = missing.Count - missingText.Count - statusBarClock.Count;
-        if (missingOther > 0)
+        var missingShapes = shapes.Checks.Where(k => k.Actual is null).ToList();
+        if (missingShapes.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine($"{missingOther} capas sin texto (contenedores, íconos, formas) no se emparejaron. " +
+            sb.AppendLine($"## Capas sin texto del diseño que no se encontraron en la app ({missingShapes.Count})");
+            sb.AppendLine();
+            var fixes = elements.Where(e => e.Status == ElementStatus.Missing).ToLookup(e => e.Name, e => e.Fix);
+            foreach (var k in missingShapes)
+                sb.AppendLine($"- {k.Label} ({k.Expected}) — {fixes[k.Label].FirstOrDefault()}");
+        }
+
+        if (shapes.NotMeasurable > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{shapes.NotMeasurable} capas sin texto no se distinguen de su fondo en el diseño y no se compararon. " +
                           "Para comparar una, pon su nombre de capa como AutomationId en la app.");
         }
 

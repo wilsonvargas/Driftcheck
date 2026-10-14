@@ -6,7 +6,7 @@ namespace Driftcheck.Mcp.Comparison;
 
 /// <summary>
 /// Qué tanto se parece la pantalla al diseño: elementos sin diferencias sobre los que se pudieron comparar
-/// (los emparejados más los textos del diseño que faltan en la app). Es una cuenta que se puede explicar
+/// (los textos emparejados, las capas sin texto que se ven y el fondo, más los que faltan en la app). Es una cuenta que se puede explicar
 /// en una línea, para seguir el avance entre una corrección y la siguiente.
 /// </summary>
 /// <param name="Previous">Fidelidad de la comparación anterior del mismo frame en el mismo dispositivo.</param>
