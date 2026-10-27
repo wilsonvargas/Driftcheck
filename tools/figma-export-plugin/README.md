@@ -1,39 +1,39 @@
-# Plugin de Figma: Driftcheck Export
+# Figma plugin: Driftcheck Export
 
-Exporta un frame para compararlo con Driftcheck **sin usar la REST API de Figma**: no necesita token ni gasta cupo
-(en algunas cuentas la API permite muy pocas llamadas y después bloquea por días).
+Exports a frame to compare it with Driftcheck **without using the Figma REST API**: it needs no token and uses no quota
+(on some accounts the API allows very few calls and then blocks for days).
 
-Genera un archivo `<frame>.driftcheck.json` con:
+It generates a `<frame>.driftcheck.json` file with:
 
-- el JSON del frame, con el mismo formato que `GET /v1/files/{key}/nodes` (`exportAsync({ format: "JSON_REST_V1" })`);
-- el render del frame a 2x, en base64;
-- el id del frame, el nombre del archivo de Figma y la fecha del export.
+- the frame JSON, in the same format as `GET /v1/files/{key}/nodes` (`exportAsync({ format: "JSON_REST_V1" })`);
+- the frame rendered at 2x, in base64;
+- the frame id, the Figma file name and the export date.
 
-## Uso
+## Usage
 
-1. En Figma, selecciona el frame (la pantalla que vas a comparar) y ejecuta **Driftcheck Export**.
-2. El archivo se descarga solo. Déjalo en la carpeta **Descargas**.
-3. Pídele a tu asistente que compare la app con el link de ese frame (*Copy link to selection*), como siempre:
-   Driftcheck encuentra el export en Descargas y no llama a la API.
+1. In Figma, select the frame (the screen you're going to compare) and run **Driftcheck Export**.
+2. The file downloads on its own. Leave it in the **Downloads** folder.
+3. Ask your assistant to compare the app with that frame's link (*Copy link to selection*), as usual:
+   Driftcheck finds the export in Downloads and doesn't call the API.
 
-Si el archivo quedó en otra carpeta, pídele al asistente que lo importe con su ruta (herramienta `import_design`).
-Si el diseño cambia, vuelve a exportar el frame: el export más nuevo reemplaza al anterior.
+If the file ended up in another folder, ask the assistant to import it by its path (`import_design` tool).
+If the design changes, export the frame again: the newest export replaces the previous one.
 
-## Instalarlo
+## Installing it
 
-**Mientras no esté publicado** (para desarrollo y pruebas): en la **app de escritorio de Figma**,
-*Plugins → Development → Import plugin from manifest…* y elige `manifest.json` de esta carpeta. Figma en el
-navegador no permite importar plugins en desarrollo.
+**While it isn't published** (for development and testing): in the **Figma desktop app**,
+*Plugins → Development → Import plugin from manifest…* and pick `manifest.json` from this folder. Figma in the
+browser doesn't allow importing development plugins.
 
-**Para usuarios finales** hay que publicarlo en la Figma Community (*Plugins → Development → Publish*), o como
-plugin privado de una organización (requiere plan Organization). Antes de publicar, cambia el `id` del
-`manifest.json` por el que Figma asigna al crear el plugin.
+**For end users** it has to be published to the Figma Community (*Plugins → Development → Publish*), or as a
+private organization plugin (requires the Organization plan). Before publishing, replace the `id` in
+`manifest.json` with the one Figma assigns when the plugin is created.
 
-## Detalles
+## Details
 
-- **Clave del archivo**: Figma solo se la da (`figma.fileKey`) a plugins privados o en desarrollo. Publicado en la
-  Community llega vacía y Driftcheck reconoce el frame solo por su id (`node-id` del link). Si dos archivos
-  distintos tuvieran exports de un frame con el mismo id, se usa el más reciente.
-- **Permisos**: `networkAccess` está en `none`: el plugin no se conecta a ningún servidor. Todo queda en el
-  archivo que descargas.
-- **Tamaño**: el render a 2x de una pantalla de teléfono pesa entre 100 KB y 1 MB.
+- **File key**: Figma only provides it (`figma.fileKey`) to private or development plugins. When published to the
+  Community it is empty and Driftcheck recognizes the frame by its id alone (the link's `node-id`). If two
+  different files had exports of a frame with the same id, the most recent one is used.
+- **Permissions**: `networkAccess` is set to `none`: the plugin doesn't connect to any server. Everything stays in
+  the file you download.
+- **Size**: a 2x render of a phone screen weighs between 100 KB and 1 MB.

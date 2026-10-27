@@ -7,6 +7,17 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <Authors>Wilson Vargas Marín</Authors>
+    <Copyright>Copyright (c) 2026 Wilson Vargas Marín</Copyright>
+    <Description>Local MCP server that compares a mobile app screen (Android or iOS Simulator) with its Figma design.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/wilsonvargas/Driftcheck</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/wilsonvargas/Driftcheck.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>mcp;figma;android;ios;maui;visual-testing</PackageTags>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
