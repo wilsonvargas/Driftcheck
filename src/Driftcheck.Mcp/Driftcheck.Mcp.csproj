@@ -13,7 +13,7 @@
     <ToolCommandName>driftcheck</ToolCommandName>
     <PackageId>Driftcheck</PackageId>
     <PackageType>McpServer</PackageType>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon-128.png</PackageIcon>
     <Authors>Wilson Vargas Marín</Authors>
