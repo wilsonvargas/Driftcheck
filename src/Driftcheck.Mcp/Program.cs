@@ -32,8 +32,12 @@ builder.Services
         Name = "Driftcheck",
         Version = version,
         WebsiteUrl = "https://github.com/wilsonvargas/Driftcheck",
-        // assets/icon.svg, para los clientes que muestran el ícono del servidor.
-        Icons = [new() { Source = Branding.IconDataUri, MimeType = "image/svg+xml", Sizes = ["any"] }],
+        // Primero el PNG: VS Code ignora los íconos SVG. Los demás clientes pueden usar el SVG.
+        Icons =
+        [
+            new() { Source = Branding.IconPngDataUri, MimeType = "image/png", Sizes = ["128x128"] },
+            new() { Source = Branding.IconDataUri, MimeType = "image/svg+xml", Sizes = ["any"] },
+        ],
     })
     .WithStdioServerTransport()
     .WithToolsFromAssembly()
