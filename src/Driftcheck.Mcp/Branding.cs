@@ -9,4 +9,16 @@ public static class Branding
         """<polyline points="17,34 29,46 52,22" fill="none" stroke="#34D399" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>""";
 
     public static readonly string IconDataUri = "data:image/svg+xml;base64," + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(IconSvg));
+
+    /// <summary>assets/icon-128.png, embebido en el ensamblado.</summary>
+    public static readonly string IconPngDataUri = "data:image/png;base64," + Convert.ToBase64String(ReadResource("Driftcheck.Mcp.icon-128.png"));
+
+    static byte[] ReadResource(string name)
+    {
+        using var stream = typeof(Branding).Assembly.GetManifestResourceStream(name)
+            ?? throw new InvalidOperationException($"The {name} resource is missing.");
+        using var memory = new MemoryStream();
+        stream.CopyTo(memory);
+        return memory.ToArray();
+    }
 }

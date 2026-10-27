@@ -35,6 +35,8 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Comparison\ReportTemplate.html" LogicalName="Driftcheck.Mcp.Comparison.ReportTemplate.html" />
+    <!-- PNG del ícono para los clientes que no aceptan SVG (VS Code). -->
+    <EmbeddedResource Include="..\..\assets\icon-128.png" LogicalName="Driftcheck.Mcp.icon-128.png" />
   </ItemGroup>
 
   <ItemGroup>
