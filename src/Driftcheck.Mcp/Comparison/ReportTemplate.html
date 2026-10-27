@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__ · Driftcheck</title>
+<link rel="icon" href="__ICON__">
 <style>
   :root {
     --bg: #f6f7f9; --surface: #ffffff; --border: #e3e6eb; --text: #14171c; --muted: #646b76;
@@ -29,7 +30,8 @@
     display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
     padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border);
   }
-  .brand { font-weight: 600; color: var(--muted); font-size: 13px; letter-spacing: .02em; }
+  .brand { font-weight: 600; color: var(--muted); font-size: 13px; letter-spacing: .02em; display: flex; align-items: center; gap: 6px; }
+  .brand img { width: 16px; height: 16px; }
   h1 { font-size: 18px; margin: 0; font-weight: 600; }
   .meta { color: var(--muted); font-size: 13px; }
   .score { display: flex; align-items: center; gap: 16px; margin-left: auto; }
@@ -139,7 +141,7 @@
 <body>
 <header>
   <div>
-    <div class="brand">Driftcheck</div>
+    <div class="brand"><img src="__ICON__" alt="">Driftcheck</div>
     <h1 id="title"></h1>
     <div class="meta" id="meta"></div>
   </div>

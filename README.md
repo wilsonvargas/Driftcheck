@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/wilsonvargas/Driftcheck/master/assets/icon-512.png" alt="" width="72" align="right">
+
 # Driftcheck
 
 [![CI](https://github.com/wilsonvargas/Driftcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/wilsonvargas/Driftcheck/actions/workflows/ci.yml)

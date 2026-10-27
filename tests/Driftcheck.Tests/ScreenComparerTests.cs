@@ -118,6 +118,7 @@ public class ScreenComparerTests : IDisposable
         var html = File.ReadAllText(result.HtmlReportPath);
         Assert.DoesNotContain("__DATA__", html);
         Assert.Contains("data:image/png;base64,", html);
+        Assert.Contains($"<link rel=\"icon\" href=\"{Branding.IconDataUri}\">", html);
         Assert.Contains("\"name\":\"Login Button\"", html);
         // Un texto de la app con </script> no puede cerrar el script de la página.
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(html, "</script>"));

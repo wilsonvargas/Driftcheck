@@ -27,7 +27,14 @@ builder.Services.AddSingleton<ScreenComparer>();
 var version = typeof(Settings).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
 
 builder.Services
-    .AddMcpServer(o => o.ServerInfo = new() { Name = "Driftcheck", Version = version })
+    .AddMcpServer(o => o.ServerInfo = new()
+    {
+        Name = "Driftcheck",
+        Version = version,
+        WebsiteUrl = "https://github.com/wilsonvargas/Driftcheck",
+        // assets/icon.svg, para los clientes que muestran el ícono del servidor.
+        Icons = [new() { Source = Branding.IconDataUri, MimeType = "image/svg+xml", Sizes = ["any"] }],
+    })
     .WithStdioServerTransport()
     .WithToolsFromAssembly()
     .WithRequestFilters(filters => filters.AddCallToolFilter(next => async (context, ct) =>

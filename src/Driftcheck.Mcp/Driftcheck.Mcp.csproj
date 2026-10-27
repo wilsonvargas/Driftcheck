@@ -15,6 +15,7 @@
     <PackageType>McpServer</PackageType>
     <Version>0.1.0</Version>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon-128.png</PackageIcon>
     <Authors>Wilson Vargas Marín</Authors>
     <Copyright>Copyright (c) 2026 Wilson Vargas Marín</Copyright>
     <Description>Local MCP server that compares a mobile app screen (Android or iOS Simulator) with its Figma design.</Description>
@@ -38,6 +39,7 @@
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\assets\icon-128.png" Pack="true" PackagePath="\" />
     <!-- Lo lee el registro de MCP para saber cómo arrancar el servidor. -->
     <None Include=".mcp\server.json" Pack="true" PackagePath="\.mcp\" />
   </ItemGroup>
