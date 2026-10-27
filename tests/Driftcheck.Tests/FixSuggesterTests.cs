@@ -46,6 +46,16 @@ public class FixSuggesterTests
         Assert.Equal("Agrega `Text(\"Create account\")` (Inter 32 peso 600)", FixSuggester.AddText(UiFramework.SwiftUI, Title));
     }
 
+    [Fact]
+    public void MissingIconUsesTheVisibleSize()
+    {
+        var icon = new DesignElement("google", "FRAME", new Rect(100, 300, 24, 24), null, null, null, null, null, null, Shape: ShapeKind.Icon);
+
+        Assert.Equal("Falta un ícono de 20×20 dp (la capa en Figma mide 24×24)",
+            FixSuggester.AddShape(UiFramework.Maui, "dp", icon, new Rect(102, 302, 20, 20)));
+        Assert.Equal("Falta un ícono de 24×24 dp", FixSuggester.AddShape(UiFramework.Maui, "dp", icon, icon.Bounds));
+    }
+
     [Theory]
     [InlineData(null, UiFramework.Generic)]
     [InlineData("MAUI", UiFramework.Maui)]

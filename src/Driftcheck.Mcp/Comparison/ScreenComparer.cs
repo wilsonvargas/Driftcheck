@@ -215,7 +215,7 @@ public sealed partial class ScreenComparer(Settings settings)
             if (check.Actual is not { } actual)
             {
                 elements.Add(new ElementResult(check.Label, automationId, ElementStatus.Missing, check.Expected, null, [],
-                    FixSuggester.AddShape(framework, capture.Unit, d)));
+                    FixSuggester.AddShape(framework, capture.Unit, d, check.Expected)));
                 continue;
             }
 
