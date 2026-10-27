@@ -105,8 +105,8 @@ public class AppInfoTests : IDisposable
 
         var warning = ProjectFreshness.Check(_dir, new AppInfo("com.companyname.paylomaui", "1.0", deployed));
 
-        Assert.Equal("La app instalada es del 2026-10-09 11:09, pero `SignUpPage.xaml` cambió el 2026-10-09 11:19: " +
-                     "compila e instala la app antes de comparar, o esta comparación es de la versión anterior.", warning);
+        Assert.Equal("The installed app is from 2026-10-09 11:09, but `SignUpPage.xaml` changed on 2026-10-09 11:19: " +
+                     "build and install the app before comparing, or this comparison is of the previous version.", warning);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class AppInfoTests : IDisposable
     public void WarnsWhenTheInstallTimeIsUnknown()
     {
         var warning = ProjectFreshness.Check(_dir, new AppInfo("com.companyname.paylomaui", null, null));
-        Assert.StartsWith("No pude leer cuándo se instaló la app (com.companyname.paylomaui)", warning);
+        Assert.StartsWith("Could not read when the app (com.companyname.paylomaui) was installed", warning);
     }
 
     void Touch(string relative, DateTime time)

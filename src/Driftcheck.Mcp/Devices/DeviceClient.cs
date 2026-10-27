@@ -15,7 +15,7 @@ public sealed record ScreenElement(string? Id, string ClassName, string? Text, s
 public sealed record AppInfo(string Id, string? Version, DateTime? DeployedAt)
 {
     public override string ToString() =>
-        Id + (Version is null ? "" : $" {Version}") + (DeployedAt is { } d ? $", instalada el {d:yyyy-MM-dd HH:mm}" : "");
+        Id + (Version is null ? "" : $" {Version}") + (DeployedAt is { } d ? $", installed on {d:yyyy-MM-dd HH:mm}" : "");
 }
 
 /// <param name="PixelsPerUnit">Píxeles de la captura por unidad lógica: densidad / 160 en Android, la escala de la pantalla (2 o 3) en iOS.</param>
@@ -85,8 +85,8 @@ public sealed class DeviceRegistry(IEnumerable<IDeviceClient> clients)
         if (found.Client is null)
         {
             var reason = serial is null
-                ? "No hay dispositivos conectados. Inicia un emulador de Android o un simulador de iOS, o conecta un teléfono."
-                : $"No encuentro el dispositivo {serial}. Usa list_devices para ver los disponibles.";
+                ? "No devices connected. Start an Android emulator or an iOS simulator, or connect a phone."
+                : $"Device {serial} not found. Use list_devices to see the available ones.";
             if (listing.Errors.Count > 0) reason += " " + string.Join(" ", listing.Errors);
             throw new InvalidOperationException(reason);
         }

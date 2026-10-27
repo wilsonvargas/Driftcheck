@@ -20,7 +20,7 @@ public static class HtmlReport
     static readonly Lazy<string> Template = new(() =>
     {
         using var stream = typeof(HtmlReport).Assembly.GetManifestResourceStream("Driftcheck.Mcp.Comparison.ReportTemplate.html")
-            ?? throw new InvalidOperationException("Falta la plantilla del reporte HTML.");
+            ?? throw new InvalidOperationException("The HTML report template is missing.");
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
     });

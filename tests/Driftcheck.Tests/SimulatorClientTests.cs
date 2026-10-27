@@ -57,7 +57,7 @@ public class SimulatorClientTests
 
         var devices = SimulatorClient.ParseDevices(json);
 
-        Assert.Equal([new DeviceInfo("A1B2", "Simulador de iOS, iPhone 17 (iOS 26.3)")], devices);
+        Assert.Equal([new DeviceInfo("A1B2", "iOS Simulator, iPhone 17 (iOS 26.3)")], devices);
     }
 
     [Theory]
@@ -83,7 +83,7 @@ public class SimulatorClientTests
         var e = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             SimulatorClient.RunTextAsync(sleep.file, sleep.args, null, TimeSpan.FromSeconds(1), CancellationToken.None));
 
-        Assert.Contains("no terminó en 1 s", e.Message);
+        Assert.Contains("didn't finish in 1 s", e.Message);
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), $"Tardó {watch.Elapsed}");
     }
 

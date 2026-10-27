@@ -147,7 +147,7 @@ public class TextInkTests : IDisposable
         var result = Compare(design, designPng, capture);
 
         var diff = Assert.Single(result.Diffs);
-        Assert.Equal(("Body «Cuerpo»", "y", "300", "308"), (diff.Name, diff.Property, diff.Expected, diff.Actual));
+        Assert.Equal(("Body \"Cuerpo\"", "y", "300", "308"), (diff.Name, diff.Property, diff.Expected, diff.Actual));
     }
 
     [Fact]
@@ -201,9 +201,9 @@ public class TextInkTests : IDisposable
 
         var report = Compare(design, designPng, capture).Report;
 
-        Assert.Contains("Se ignoró la hora de la barra de estado del diseño (12:30)", report);
-        Assert.Contains("## Textos del diseño que no están en la app (1)", report);
-        Assert.Contains("- Footer «Pie»", report);
+        Assert.Contains("Ignored the design's status bar clock (12:30)", report);
+        Assert.Contains("## Design texts missing from the app (1)", report);
+        Assert.Contains("- Footer \"Pie\"", report);
     }
 
     [Fact]
@@ -231,8 +231,8 @@ public class TextInkTests : IDisposable
         var result = Compare(design, designPng, capture);
 
         Assert.Empty(result.Diffs);
-        var line = result.Report.Split('\n').Single(l => l.Contains("Píxeles distintos"));
-        Assert.Matches(@"Píxeles distintos: 0[.,]0", line);
+        var line = result.Report.Split('\n').Single(l => l.Contains("Different pixels"));
+        Assert.Matches(@"Different pixels: 0[.,]0", line);
     }
 
     ComparisonResult Compare(DesignFrame design, string designPng, ScreenCapture capture) =>

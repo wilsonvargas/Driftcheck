@@ -8,12 +8,12 @@ const FORMAT_VERSION = 1;
 async function exportSelection() {
   const selection = figma.currentPage.selection;
   if (selection.length !== 1) {
-    figma.ui.postMessage({ error: "Selecciona un solo frame (la pantalla que vas a comparar)." });
+    figma.ui.postMessage({ error: "Select a single frame (the screen you're going to compare)." });
     return;
   }
 
   const node = selection[0];
-  figma.ui.postMessage({ busy: `Exportando «${node.name}»…` });
+  figma.ui.postMessage({ busy: `Exporting "${node.name}"…` });
 
   const rest = await node.exportAsync({ format: "JSON_REST_V1" });
   const png = await node.exportAsync({ format: "PNG", constraint: { type: "SCALE", value: 2 } });

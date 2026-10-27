@@ -108,7 +108,7 @@ public sealed partial class ScreenComparer
 
             if (designSample.Border is { } designBorder)
             {
-                if (appSample.Border is not { } appBorder) diffs.Add(("border", designBorder.Hex, "sin borde"));
+                if (appSample.Border is not { } appBorder) diffs.Add(("border", designBorder.Hex, "no border"));
                 else if (appBorder.DistanceTo(designBorder) > c.ColorTolerance) diffs.Add(("border", designBorder.Hex, appBorder.Hex));
             }
 
@@ -120,7 +120,7 @@ public sealed partial class ScreenComparer
             if (!solid && diffs.Count == 0)
             {
                 var difference = ShapeProbe.Difference(c.DesignBitmap, designSample.Bounds, c.ScreenBitmap, appSample.Bounds);
-                if (difference > ImageDifference) diffs.Add(("image", "como en Figma", $"{difference:P0} distinta"));
+                if (difference > ImageDifference) diffs.Add(("image", "as in Figma", $"{difference:P0} different"));
             }
 
             checks.Add(new ShapeCheck(shape, label, designBox, expected, actual, designSample.Background, diffs));
@@ -164,10 +164,10 @@ public sealed partial class ScreenComparer
         var generic = shape.Name.Contains('=') || GenericShapeNameRegex().IsMatch(shape.Name.Trim());
         var name = !generic ? shape.Name : shape.Shape switch
         {
-            ShapeKind.Icon => "Ícono",
-            ShapeKind.Image => "Imagen",
-            _ when Math.Min(b.Width, b.Height) <= 2 => "Línea",
-            _ => "Forma",
+            ShapeKind.Icon => "Icon",
+            ShapeKind.Image => "Image",
+            _ when Math.Min(b.Width, b.Height) <= 2 => "Line",
+            _ => "Shape",
         };
 
         var text = elements
@@ -178,7 +178,7 @@ public sealed partial class ScreenComparer
             .FirstOrDefault(t => t.Length > 0);
         if (text is null) return name;
         if (text.Length > 40) text = text[..40] + "…";
-        return $"{name} «{text}»";
+        return $"{name} \"{text}\"";
     }
 
     [GeneratedRegex(@"^(Frame|Group|Rectangle|Ellipse|Vector|Line|Polygon|Star|Union|Subtract|Intersect|Exclude|Image|Component|Instance|Auto layout( (horizontal|vertical))?|Content|Container)( \d+)?$", RegexOptions.IgnoreCase)]

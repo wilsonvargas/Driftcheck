@@ -7,7 +7,7 @@ import XCTest
 final class DumpTests: XCTestCase {
     func testDump() throws {
         let env = ProcessInfo.processInfo.environment
-        let output = try XCTUnwrap(env["DRIFTCHECK_OUTPUT"], "Falta DRIFTCHECK_OUTPUT")
+        let output = try XCTUnwrap(env["DRIFTCHECK_OUTPUT"], "DRIFTCHECK_OUTPUT is missing")
         let candidates = (env["DRIFTCHECK_BUNDLE_IDS"] ?? "")
             .split(separator: ",").map { String($0) }.filter { !$0.isEmpty }
 
@@ -15,7 +15,7 @@ final class DumpTests: XCTestCase {
             .map({ ($0, XCUIApplication(bundleIdentifier: $0)) })
             .first(where: { $0.1.state == .runningForeground })
         else {
-            try write(["error": "No hay ninguna app en primer plano en el simulador."], to: output)
+            try write(["error": "No app is in the foreground on the simulator."], to: output)
             return
         }
 

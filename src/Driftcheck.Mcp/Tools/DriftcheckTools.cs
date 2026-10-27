@@ -19,55 +19,55 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
     static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2.5);
 
     [McpServerTool(Name = "import_design"), Description(
-        "Importa un archivo .driftcheck.json exportado con el plugin de Driftcheck en Figma, para comparar sin la API " +
-        "de Figma (sin token o sin cupo). Los que están en la carpeta Descargas se usan solos; esto es para los que " +
-        "quedaron en otra carpeta. Después se compara con el link del frame, como siempre.")]
+        "Imports a .driftcheck.json file exported with the Driftcheck plugin in Figma, to compare without the Figma API " +
+        "(no token or no quota). Exports in the Downloads folder are picked up on their own; this is for the ones that " +
+        "ended up in another folder. Then compare with the frame link, as usual.")]
     public string ImportDesign(
-        [Description("Ruta del archivo .driftcheck.json")] string path)
+        [Description("Path of the .driftcheck.json file")] string path)
     {
         var export = new DesignExports(settings).Import(path);
-        var file = export.FileKey is null ? "" : $" del archivo {export.FileKey}";
-        return $"Importado «{export.NodeName}» (node-id={export.NodeId.Replace(':', '-')}){file}, exportado el " +
-               $"{export.ExportedAtUtc:yyyy-MM-dd HH:mm} UTC. Usa get_design_specs o compare_screen con el link de ese " +
-               "frame (Copy link to selection en Figma).";
+        var file = export.FileKey is null ? "" : $" from file {export.FileKey}";
+        return $"Imported \"{export.NodeName}\" (node-id={export.NodeId.Replace(':', '-')}){file}, exported on " +
+               $"{export.ExportedAtUtc:yyyy-MM-dd HH:mm} UTC. Use get_design_specs or compare_screen with that " +
+               "frame's link (Copy link to selection in Figma).";
     }
 
     [McpServerTool(Name = "list_devices"), Description(
-        "Lista los dispositivos y emuladores Android conectados por adb y, en macOS, los simuladores de iOS encendidos.")]
+        "Lists the Android devices and emulators connected through adb and, on macOS, the booted iOS simulators.")]
     public async Task<string> ListDevices(CancellationToken ct)
     {
         var listing = await devices.ListAsync(ct);
         var sb = new StringBuilder();
         if (listing.Devices.Count == 0)
-            sb.AppendLine("No hay dispositivos conectados. Inicia un emulador de Android o un simulador de iOS, o conecta un teléfono con depuración USB.");
+            sb.AppendLine("No devices connected. Start an Android emulator or an iOS simulator, or connect a phone with USB debugging.");
         foreach (var (_, d) in listing.Devices)
             sb.AppendLine($"{d.Serial} — {d.Description}");
         foreach (var error in listing.Errors)
-            sb.AppendLine($"(No se pudo consultar {error})");
+            sb.AppendLine($"(Could not query {error})");
         return sb.ToString().TrimEnd();
     }
 
     [McpServerTool(Name = "get_design_specs"), Description(
-        "Devuelve las medidas del frame de Figma: posición, tamaño, colores, textos y tipografía de cada capa con nombre. " +
-        "Úsalo ANTES de escribir el XAML de una pantalla. Si se pasa deviceWidth, los valores se escalan a ese ancho en dp o pt.")]
+        "Returns the measurements of the Figma frame: position, size, colors, texts and typography of every named layer. " +
+        "Use it BEFORE writing a screen's UI code. If deviceWidth is passed, values are scaled to that width in dp or pt.")]
     public async Task<string> GetDesignSpecs(
-        [Description("URL del frame en Figma (Copy link to selection), debe incluir ?node-id=")] string figmaUrl,
-        [Description("Ancho lógico del dispositivo destino en dp o pt (ej. 412 para Pixel 7, 402 para iPhone 17). Opcional.")] double? deviceWidth = null,
-        [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
+        [Description("Figma frame URL (Copy link to selection), must include ?node-id=")] string figmaUrl,
+        [Description("Logical width of the target device in dp or pt (e.g. 412 for Pixel 7, 402 for iPhone 17). Optional.")] double? deviceWidth = null,
+        [Description("true to download the Figma frame again instead of using the local cache. Use it only if the design changed: each download uses Figma API quota.")] bool refresh = false,
         CancellationToken ct = default)
     {
         var frame = await figma.GetFrameAsync(figmaUrl, refresh, ct);
         var scale = deviceWidth is > 0 ? deviceWidth.Value / frame.Bounds.Width : 1;
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# {frame.Name} ({frame.Bounds.Width:0.#}×{frame.Bounds.Height:0.#}, escala {scale:0.###})");
+        sb.AppendLine($"# {frame.Name} ({frame.Bounds.Width:0.#}×{frame.Bounds.Height:0.#}, scale {scale:0.###})");
         sb.AppendLine();
         if (frame.CachedAt is { } cachedAt)
-            sb.AppendLine($"Diseño tomado de la caché local (descargado el {cachedAt:yyyy-MM-dd HH:mm}). Usa refresh=true si cambió en Figma.");
-        sb.AppendLine("compare_screen empareja los textos por texto visible y busca las capas sin texto (botones, campos, líneas, " +
-                      "íconos, imágenes) por cómo se ven; también empareja por nombre de capa = AutomationId.");
+            sb.AppendLine($"Design taken from the local cache (downloaded on {cachedAt:yyyy-MM-dd HH:mm}). Use refresh=true if it changed in Figma.");
+        sb.AppendLine("compare_screen matches texts by visible text and finds non-text layers (buttons, fields, lines, " +
+                      "icons, images) by how they look; it also matches by layer name = AutomationId.");
         sb.AppendLine();
-        sb.AppendLine("| Capa | Tipo | x | y | ancho | alto | fondo | radio | texto | fuente |");
+        sb.AppendLine("| Layer | Type | x | y | width | height | background | radius | text | font |");
         sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|");
 
         foreach (var e in frame.Elements)
@@ -82,14 +82,14 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
         if (frame.Shapes is { Count: > 0 } shapes)
         {
             sb.AppendLine();
-            sb.AppendLine("## Capas sin texto que se ven");
+            sb.AppendLine("## Visible non-text layers");
             sb.AppendLine();
-            sb.AppendLine("| Capa | Qué es | x | y | ancho | alto | fondo | borde | radio |");
+            sb.AppendLine("| Layer | Kind | x | y | width | height | background | border | radius |");
             sb.AppendLine("|---|---|---|---|---|---|---|---|---|");
             foreach (var e in shapes)
             {
                 var b = e.Bounds.Scale(scale);
-                var kind = e.Shape switch { ShapeKind.Icon => e.MultiColor ? "ícono de varios colores" : "ícono", ShapeKind.Image => "imagen", _ => "forma" };
+                var kind = e.Shape switch { ShapeKind.Icon => e.MultiColor ? "multicolor icon" : "icon", ShapeKind.Image => "image", _ => "shape" };
                 sb.AppendLine($"| {Escape(e.Name)} | {kind} | {F(b.X)} | {F(b.Y)} | {F(b.Width)} | {F(b.Height)} | {e.Fill?.Hex} | {e.Stroke?.Hex} | {(e.CornerRadius is { } r ? F(r * scale) : "")} |");
             }
         }
@@ -98,21 +98,21 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
     }
 
     [McpServerTool(Name = "capture_screen"), Description(
-        "Toma una captura del dispositivo (Android o simulador de iOS) y lista los elementos visibles con su AutomationId " +
-        "(resource-id en Android, accessibilityIdentifier en iOS), texto y bounds en dp o pt. En iOS tarda unos segundos más: " +
-        "lee el árbol de accesibilidad con un UI test, que se compila la primera vez.")]
+        "Takes a screenshot of the device (Android or iOS Simulator) and lists the visible elements with their AutomationId " +
+        "(resource-id on Android, accessibilityIdentifier on iOS), text and bounds in dp or pt. On iOS it takes a few more seconds: " +
+        "it reads the accessibility tree with a UI test, which is built the first time.")]
     public async Task<string> CaptureScreen(
-        [Description("Serial o UDID del dispositivo (de list_devices). Opcional: usa el primero.")] string? deviceSerial = null,
+        [Description("Device serial or UDID (from list_devices). Optional: uses the first one.")] string? deviceSerial = null,
         CancellationToken ct = default)
     {
         var capture = await devices.CaptureAsync(deviceSerial, ct);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"Captura: {capture.ScreenshotPath}");
-        sb.AppendLine($"Dispositivo: {capture.Serial}, {capture.WidthPx}×{capture.HeightPx} px, {capture.PixelsPerUnit:0.##} px por {capture.Unit} ({capture.WidthUnits:0.#} {capture.Unit} de ancho)");
+        sb.AppendLine($"Screenshot: {capture.ScreenshotPath}");
+        sb.AppendLine($"Device: {capture.Serial}, {capture.WidthPx}×{capture.HeightPx} px, {capture.PixelsPerUnit:0.##} px per {capture.Unit} ({capture.WidthUnits:0.#} {capture.Unit} wide)");
         if (capture.App is { } app) sb.AppendLine($"App: {app}");
         sb.AppendLine();
-        sb.AppendLine("| AutomationId | Clase | Texto | x | y | ancho | alto |");
+        sb.AppendLine("| AutomationId | Class | Text | x | y | width | height |");
         sb.AppendLine("|---|---|---|---|---|---|---|");
         foreach (var e in capture.Elements)
             sb.AppendLine($"| {e.Id} | {e.ClassName.Split('.').Last()} | {Escape(e.Text ?? e.ContentDescription)} | {F(e.Bounds.X)} | {F(e.Bounds.Y)} | {F(e.Bounds.Width)} | {F(e.Bounds.Height)} |");
@@ -121,27 +121,27 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
     }
 
     [McpServerTool(Name = "compare_screen"), Description(
-        "Compara la pantalla actual de la app en el dispositivo (Android o simulador de iOS) con un frame de Figma. " +
-        "Empareja capas de Figma con elementos de la app por texto visible, nombre = AutomationId o posición, y reporta diferencias de posición, tamaño, " +
-        "texto y color de fondo. Las capas sin texto (botones, campos, líneas, íconos, imágenes) se buscan en la captura por " +
-        "cómo se ven y se comparan caja, relleno, radio de las esquinas, borde y contenido. Reporta la fidelidad (% de elementos como en Figma, y cuánto cambió desde la comparación anterior) " +
-        "y cómo corregir cada diferencia con las propiedades del framework. Genera report.html (reporte interactivo para " +
-        "mostrarle al usuario), side_by_side.png y diff.png (en diff.png: verde = coincide, naranja = difiere, " +
-        "punteado azul = dónde debería estar según Figma). Abre las imágenes para una revisión visual. " +
-        "Si la captura no se parece al diseño (una pantalla de carga), espera y vuelve a capturar hasta 3 veces.")]
+        "Compares the app's current screen on the device (Android or iOS Simulator) with a Figma frame. " +
+        "Matches Figma layers to app elements by visible text, name = AutomationId or position, and reports differences in position, size, " +
+        "text and background color. Non-text layers (buttons, fields, lines, icons, images) are found in the screenshot by " +
+        "how they look, comparing box, fill, corner radius, border and content. Reports fidelity (% of elements as in Figma, and how much it changed since the previous comparison) " +
+        "and how to fix each difference with the framework's properties. Generates report.html (interactive report to " +
+        "show the user), side_by_side.png and diff.png (in diff.png: green = matches, orange = differs, " +
+        "dotted blue = where Figma says it should be). Open the images for a visual review. " +
+        "If the screenshot doesn't look like the design (a loading screen), it waits and captures again up to 3 times.")]
     public async Task<string> CompareScreen(
-        [Description("URL del frame en Figma (Copy link to selection), debe incluir ?node-id=")] string figmaUrl,
-        [Description("Serial o UDID del dispositivo. Opcional: usa el primero.")] string? deviceSerial = null,
-        [Description("Tolerancia de posición/tamaño en dp o pt. Por defecto 2.")] double tolerance = 2,
-        [Description("Tolerancia de color (distancia RGB 0–441). Por defecto 24.")] double colorTolerance = 24,
-        [Description("true para volver a descargar el frame de Figma en vez de usar la caché local. Úsalo solo si el diseño cambió: cada descarga gasta cupo de la API de Figma.")] bool refresh = false,
-        [Description("Framework de la app, para escribir las sugerencias con sus propiedades: maui, android (vistas XML), compose, uikit, swiftui o flutter. Opcional.")] string? framework = null,
-        [Description("Carpeta del proyecto de la app. Opcional: si tiene archivos más nuevos que la app instalada, el reporte avisa que falta compilar e instalar.")] string? projectPath = null,
+        [Description("Figma frame URL (Copy link to selection), must include ?node-id=")] string figmaUrl,
+        [Description("Device serial or UDID. Optional: uses the first one.")] string? deviceSerial = null,
+        [Description("Position/size tolerance in dp or pt. Default 2.")] double tolerance = 2,
+        [Description("Color tolerance (RGB distance 0–441). Default 24.")] double colorTolerance = 24,
+        [Description("true to download the Figma frame again instead of using the local cache. Use it only if the design changed: each download uses Figma API quota.")] bool refresh = false,
+        [Description("App framework, to write the suggestions with its properties: maui, android (XML views), compose, uikit, swiftui or flutter. Optional.")] string? framework = null,
+        [Description("App project folder. Optional: if it has files newer than the installed app, the report warns that the app needs to be rebuilt and reinstalled.")] string? projectPath = null,
         CancellationToken ct = default)
     {
         var fw = FixSuggester.ParseFramework(framework);
         if (projectPath is not null && !Directory.Exists(projectPath))
-            throw new ArgumentException($"No encuentro la carpeta del proyecto: {projectPath}");
+            throw new ArgumentException($"Project folder not found: {projectPath}");
 
         var frameTask = figma.GetFrameAsync(figmaUrl, refresh, ct);
         var pngTask = figma.RenderPngAsync(figmaUrl, 2, refresh, ct);
@@ -169,8 +169,8 @@ public sealed class DriftcheckTools(FigmaClient figma, DeviceRegistry devices, S
         var retryNote = retries switch
         {
             0 => "",
-            1 => "(La primera captura no se parecía al diseño, así que se esperó y se volvió a capturar.)\n\n",
-            _ => $"(Las primeras {retries} capturas no se parecían al diseño, así que se esperó y se volvió a capturar.)\n\n",
+            1 => "(The first screenshot didn't look like the design, so Driftcheck waited and captured again.)\n\n",
+            _ => $"(The first {retries} screenshots didn't look like the design, so Driftcheck waited and captured again.)\n\n",
         };
         return retryNote + result.Report +
                $"\n\nreport.html: {result.HtmlReportPath}\nside_by_side: {result.SideBySidePath}\ndiff: {result.DiffPath}";

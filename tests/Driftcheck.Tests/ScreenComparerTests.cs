@@ -46,7 +46,7 @@ public class ScreenComparerTests : IDisposable
 
         Assert.Contains(result.Diffs, d => d is { Name: "Login Button", Property: "y", Expected: "600", Actual: "612" });
         Assert.Contains(result.Diffs, d => d is { Name: "Login Button", Property: "background" } && d.Actual == Red.Hex);
-        Assert.Contains(result.Diffs, d => d is { Name: "Title «Bienvenido»", Property: "text", Actual: "Bienvenida" });
+        Assert.Contains(result.Diffs, d => d is { Name: "Title \"Bienvenido\"", Property: "text", Actual: "Bienvenida" });
         Assert.DoesNotContain(result.Diffs, d => d.Name == "Subtitle");
         Assert.True(File.Exists(result.DiffPath));
         Assert.True(File.Exists(result.SideBySidePath));
@@ -75,7 +75,7 @@ public class ScreenComparerTests : IDisposable
         var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24);
 
         var diff = Assert.Single(result.Diffs);
-        Assert.Equal(("Title «Bienvenido»", "text color", Black.Hex, Red.Hex), (diff.Name, diff.Property, diff.Expected, diff.Actual));
+        Assert.Equal(("Title \"Bienvenido\"", "text color", Black.Hex, Red.Hex), (diff.Name, diff.Property, diff.Expected, diff.Actual));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class ScreenComparerTests : IDisposable
         // Antes solo coincidía Subtitle; ahora los tres.
         Assert.Equal((1, 3, 33, (int?)null), (before.Fidelity.Correct, before.Fidelity.Total, before.Fidelity.Percent, before.Fidelity.Previous));
         Assert.Equal((3, 3, 100, (int?)33), (after.Fidelity.Correct, after.Fidelity.Total, after.Fidelity.Percent, after.Fidelity.Previous));
-        Assert.Contains("**Fidelidad: 100 %** · antes 33 % (+67)", after.Report);
+        Assert.Contains("**Fidelity: 100 %** · before 33 % (+67)", after.Report);
     }
 
     [Fact]
@@ -132,10 +132,10 @@ public class ScreenComparerTests : IDisposable
 
         var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24, UiFramework.Maui);
 
-        Assert.Contains(result.Diffs, d => d is { Property: "y", Fix: "Muévelo 12 dp hacia arriba: `Margin` superior −12 (o el espacio con el elemento de arriba)" });
+        Assert.Contains(result.Diffs, d => d is { Property: "y", Fix: "Move it 12 dp up: top `Margin` −12 (or the spacing to the element above)" });
         Assert.Contains(result.Diffs, d => d is { Property: "background", Fix: "`BackgroundColor=\"#1976D2\"`" });
         Assert.Contains(result.Diffs, d => d is { Property: "text", Fix: "`Text=\"Bienvenido\"`" });
-        Assert.Contains("## Cómo corregirlo", result.Report);
+        Assert.Contains("## How to fix it", result.Report);
         Assert.Contains("- **Login Button** (AutomationId `LoginButton`)", result.Report);
     }
 
@@ -150,8 +150,8 @@ public class ScreenComparerTests : IDisposable
         var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24);
 
         Assert.True(result.LooksLikeLoadingScreen);
-        Assert.Contains(result.Warnings, w => w.StartsWith("La captura no se parece al diseño"));
-        Assert.Contains("> ⚠️ La captura no se parece al diseño", result.Report);
+        Assert.Contains(result.Warnings, w => w.StartsWith("The screenshot doesn't look like the design"));
+        Assert.Contains("> ⚠️ The screenshot doesn't look like the design", result.Report);
     }
 
     [Fact]
@@ -164,12 +164,12 @@ public class ScreenComparerTests : IDisposable
         };
 
         var result = new ScreenComparer(new Settings()).Compare(design, designPng, capture, tolerance: 2, colorTolerance: 24,
-            warnings: ["La app instalada es vieja."]);
+            warnings: ["The installed app is old."]);
 
         Assert.False(result.LooksLikeLoadingScreen);
-        Assert.Contains("- App: com.companyname.paylomaui 1.0 (1), instalada el 2026-10-09 11:09", result.Report);
-        Assert.Contains("> ⚠️ La app instalada es vieja.", result.Report);
-        Assert.Contains("La app instalada es vieja.", File.ReadAllText(result.HtmlReportPath));
+        Assert.Contains("- App: com.companyname.paylomaui 1.0 (1), installed on 2026-10-09 11:09", result.Report);
+        Assert.Contains("> ⚠️ The installed app is old.", result.Report);
+        Assert.Contains("The installed app is old.", File.ReadAllText(result.HtmlReportPath));
     }
 
     [Fact]

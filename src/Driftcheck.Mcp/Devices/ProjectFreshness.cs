@@ -31,17 +31,17 @@ public static class ProjectFreshness
     public static string? Check(string projectPath, AppInfo? app)
     {
         if (!Directory.Exists(projectPath))
-            throw new ArgumentException($"No encuentro la carpeta del proyecto: {projectPath}");
+            throw new ArgumentException($"Project folder not found: {projectPath}");
 
         if (app?.DeployedAt is not { } deployed)
-            return $"No pude leer cuándo se instaló la app{(app is null ? "" : $" ({app.Id})")}, así que no sé si tiene " +
-                   "los últimos cambios del proyecto.";
+            return $"Could not read when the app{(app is null ? "" : $" ({app.Id})")} was installed, so it's unknown whether it has " +
+                   "the project's latest changes.";
 
         if (FindNewestSource(projectPath) is not { } newest || newest.Time <= deployed + Grace) return null;
 
         var file = Path.GetRelativePath(projectPath, newest.Path);
-        return $"La app instalada es del {deployed:yyyy-MM-dd HH:mm}, pero `{file}` cambió el {newest.Time:yyyy-MM-dd HH:mm}: " +
-               "compila e instala la app antes de comparar, o esta comparación es de la versión anterior.";
+        return $"The installed app is from {deployed:yyyy-MM-dd HH:mm}, but `{file}` changed on {newest.Time:yyyy-MM-dd HH:mm}: " +
+               "build and install the app before comparing, or this comparison is of the previous version.";
     }
 
     public static (string Path, DateTime Time)? FindNewestSource(string root)

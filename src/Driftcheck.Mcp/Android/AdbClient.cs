@@ -138,7 +138,7 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
     {
         var start = xml.IndexOf("<?xml", StringComparison.Ordinal);
         if (start < 0) start = xml.IndexOf("<hierarchy", StringComparison.Ordinal);
-        if (start < 0) throw new InvalidOperationException($"uiautomator no devolvió XML: {xml}");
+        if (start < 0) throw new InvalidOperationException($"uiautomator didn't return XML: {xml}");
 
         var doc = XDocument.Parse(xml[start..]);
         var result = new List<ScreenElement>();
@@ -177,7 +177,7 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
         // "Physical density: 420" y, si se cambió, "Override density: 480".
         var output = await RunTextAsync(serial, ["shell", "wm", "density"], ct);
         var matches = DensityRegex().Matches(output);
-        if (matches.Count == 0) throw new InvalidOperationException($"No pude leer la densidad: {output}");
+        if (matches.Count == 0) throw new InvalidOperationException($"Could not read the density: {output}");
         return double.Parse(matches[^1].Groups[1].Value, CultureInfo.InvariantCulture);
     }
 
@@ -185,7 +185,7 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
     {
         var output = await RunTextAsync(serial, ["shell", "wm", "size"], ct);
         var matches = SizeRegex().Matches(output);
-        if (matches.Count == 0) throw new InvalidOperationException($"No pude leer el tamaño: {output}");
+        if (matches.Count == 0) throw new InvalidOperationException($"Could not read the size: {output}");
         var m = matches[^1];
         return (int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value));
     }
@@ -210,7 +210,7 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
         foreach (var a in args) psi.ArgumentList.Add(a);
 
         using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException($"No se pudo ejecutar {settings.AdbPath}");
+            ?? throw new InvalidOperationException($"Could not run {settings.AdbPath}");
 
         using var stdout = new MemoryStream();
         var copy = process.StandardOutput.BaseStream.CopyToAsync(stdout, ct);
@@ -218,7 +218,7 @@ public sealed partial class AdbClient(Settings settings) : IDeviceClient
         await Task.WhenAll(copy, stderr, process.WaitForExitAsync(ct));
 
         if (process.ExitCode != 0)
-            throw new InvalidOperationException($"adb {string.Join(' ', args)} falló ({process.ExitCode}): {await stderr}");
+            throw new InvalidOperationException($"adb {string.Join(' ', args)} failed ({process.ExitCode}): {await stderr}");
 
         return stdout.ToArray();
     }

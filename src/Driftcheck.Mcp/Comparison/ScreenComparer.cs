@@ -53,9 +53,9 @@ public sealed partial class ScreenComparer(Settings settings)
         IReadOnlyList<string>? warnings = null)
     {
         using var screenshot = SKBitmap.Decode(capture.ScreenshotPath)
-            ?? throw new InvalidOperationException("No pude leer la captura del dispositivo.");
+            ?? throw new InvalidOperationException("Could not read the device screenshot.");
         using var designPng = SKBitmap.Decode(designPngPath)
-            ?? throw new InvalidOperationException("No pude leer el PNG de Figma.");
+            ?? throw new InvalidOperationException("Could not read the Figma PNG.");
 
         var pxToDp = capture.PxToUnit;
         var deviceWidthDp = screenshot.Width * pxToDp;
@@ -198,7 +198,7 @@ public sealed partial class ScreenComparer(Settings settings)
 
         if (ScreenBackground(design, shapeContext) is var (designBackground, appBackground))
         {
-            var page = new DesignElement("Fondo de la pantalla", "FRAME", design.Bounds, design.Background, null, null, null, null, null);
+            var page = new DesignElement("Screen background", "FRAME", design.Bounds, design.Background, null, null, null, null, null);
             var screenBox = new Rect(0, 0, screenshot.Width * pxToDp, screenshot.Height * pxToDp);
             var elementDiffs = new List<ElementDiff>();
             if (appBackground.DistanceTo(designBackground) > colorTolerance)
@@ -283,10 +283,10 @@ public sealed partial class ScreenComparer(Settings settings)
         var looksLikeLoadingScreen = mismatchRatio > LoadingScreenMismatch || (pairs.Count == 0 && missingText.Count > 0);
         var allWarnings = new List<string>();
         if (looksLikeLoadingScreen)
-            allWarnings.Add($"La captura no se parece al diseño ({mismatchRatio:P0} de píxeles distintos" +
-                            (pairs.Count == 0 ? ", ningún elemento emparejado" : "") +
-                            "): puede ser una pantalla de carga, un diálogo, el teclado u otra pantalla. " +
-                            "Mira side_by_side.png antes de corregir nada.");
+            allWarnings.Add($"The screenshot doesn't look like the design ({mismatchRatio:P0} of pixels differ" +
+                            (pairs.Count == 0 ? ", no element matched" : "") +
+                            "): it may be a loading screen, a dialog, the keyboard or another screen. " +
+                            "Look at side_by_side.png before fixing anything.");
         if (warnings is not null) allWarnings.AddRange(warnings);
 
         var htmlPath = Path.Combine(runDir, "report.html");
@@ -296,7 +296,7 @@ public sealed partial class ScreenComparer(Settings settings)
 
         using (var designData = alignedDesign.Encode(SKEncodedImageFormat.Png, 100))
             HtmlReport.Write(htmlPath, new HtmlReport.Model(
-                design.Name, $"{capture.Serial} · {capture.WidthUnits:0.#} {capture.Unit} de ancho", capture.App?.ToString(), DateTime.Now,
+                design.Name, $"{capture.Serial} · {capture.WidthUnits:0.#} {capture.Unit} wide", capture.App?.ToString(), DateTime.Now,
                 capture.PixelsPerUnit, screenshot.Width, screenshot.Height, fidelity, mismatchRatio, allWarnings, elements,
                 designData.ToArray(), File.ReadAllBytes(capture.ScreenshotPath), File.ReadAllBytes(diffPath)));
 
@@ -635,19 +635,19 @@ public sealed partial class ScreenComparer(Settings settings)
         int Count(MatchMethod m) => byMethod.GetValueOrDefault(m);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"# Comparación: {design.Name}");
+        sb.AppendLine($"# Comparison: {design.Name}");
         sb.AppendLine();
         if (fidelity.Total > 0)
         {
             var change = fidelity.Change switch
             {
                 null => "",
-                0 => " · igual que la comparación anterior",
-                > 0 and var c => $" · antes {fidelity.Previous} % (+{c})",
-                var c => $" · antes {fidelity.Previous} % ({c})",
+                0 => " · same as the previous comparison",
+                > 0 and var c => $" · before {fidelity.Previous} % (+{c})",
+                var c => $" · before {fidelity.Previous} % ({c})",
             };
-            sb.AppendLine($"**Fidelidad: {fidelity.Percent} %**{change} — {fidelity.Correct} de {fidelity.Total} elementos como en Figma " +
-                          "(los textos y las capas sin texto que se ven sin diferencias, sobre todos los comparados más los que faltan en la app)");
+            sb.AppendLine($"**Fidelity: {fidelity.Percent} %**{change} — {fidelity.Correct} of {fidelity.Total} elements as in Figma " +
+                          "(texts and visible non-text layers with no differences, over all compared elements plus those missing from the app)");
             sb.AppendLine();
         }
         foreach (var warning in warnings)
@@ -655,55 +655,55 @@ public sealed partial class ScreenComparer(Settings settings)
             sb.AppendLine($"> ⚠️ {warning}");
             sb.AppendLine();
         }
-        sb.AppendLine($"Reporte interactivo: {htmlPath}");
+        sb.AppendLine($"Interactive report: {htmlPath}");
         sb.AppendLine();
         var u = capture.Unit;
-        sb.AppendLine($"- Dispositivo: {capture.Serial} ({capture.WidthUnits:0.#} {u} de ancho, {capture.PixelsPerUnit:0.##} px por {u})");
+        sb.AppendLine($"- Device: {capture.Serial} ({capture.WidthUnits:0.#} {u} wide, {capture.PixelsPerUnit:0.##} px per {u})");
         if (capture.App is { } app) sb.AppendLine($"- App: {app}");
         sb.AppendLine(scale == 1
-            ? $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, comparado 1:1 en {u}"
-            : $"- Frame de Figma: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, escalado ×{scale:0.###} al ancho del dispositivo");
+            ? $"- Figma frame: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, compared 1:1 in {u}"
+            : $"- Figma frame: {design.Bounds.Width:0.#}×{design.Bounds.Height:0.#}, scaled ×{scale:0.###} to the device width");
         if (Math.Abs(extraWidth) >= 0.5)
-            sb.AppendLine($"- El dispositivo es {Math.Abs(extraWidth):0.#} {u} más {(extraWidth > 0 ? "ancho" : "angosto")} que el frame: " +
-                          "cada elemento se compara anclado a la izquierda, a la derecha, centrado o estirado, según cuál se ajuste mejor");
+            sb.AppendLine($"- The device is {Math.Abs(extraWidth):0.#} {u} {(extraWidth > 0 ? "wider" : "narrower")} than the frame: " +
+                          "each element is compared anchored left, right, centered or stretched, whichever fits best");
         if (design.CachedAt is { } cachedAt)
-            sb.AppendLine($"- Diseño de la caché local (descargado el {cachedAt:yyyy-MM-dd HH:mm}); usa refresh=true si cambió en Figma");
-        sb.AppendLine($"- Desplazamiento global estimado: dx={dx:0.#} {u}, dy={dy:0.#} {u}");
-        sb.AppendLine("- Los textos se comparan por sus letras visibles, medidas en el render del diseño y en la captura " +
-                      "(no por las cajas: en la app suelen estar dentro de vistas más anchas). En el ancho se tolera un 2.5 %.");
-        sb.AppendLine($"- Elementos emparejados: {pairs.Count} de {design.Elements.Count} capas " +
-                      $"(por AutomationId {Count(MatchMethod.Name)}, por texto {Count(MatchMethod.Text)}, por posición {Count(MatchMethod.Position)})");
+            sb.AppendLine($"- Design from the local cache (downloaded on {cachedAt:yyyy-MM-dd HH:mm}); use refresh=true if it changed in Figma");
+        sb.AppendLine($"- Estimated global offset: dx={dx:0.#} {u}, dy={dy:0.#} {u}");
+        sb.AppendLine("- Texts are compared by their visible glyphs, measured in the design render and in the screenshot " +
+                      "(not by their boxes: in the app they usually sit inside wider views). Width has a 2.5 % tolerance.");
+        sb.AppendLine($"- Matched elements: {pairs.Count} of {design.Elements.Count} layers " +
+                      $"(by AutomationId {Count(MatchMethod.Name)}, by text {Count(MatchMethod.Text)}, by position {Count(MatchMethod.Position)})");
         if (shapes.Checks.Count > 0)
-            sb.AppendLine($"- Capas sin texto (formas, íconos, imágenes): {shapes.Checks.Count}, buscadas en la captura por cómo se ven " +
-                          "y medidas igual que en el render del diseño (caja, relleno, radio, borde y contenido)");
+            sb.AppendLine($"- Non-text layers (shapes, icons, images): {shapes.Checks.Count}, found in the screenshot by how they look " +
+                          "and measured the same way as in the design render (box, fill, radius, border and content)");
         if (shapes.DeviceChrome > 0)
-            sb.AppendLine($"- Se ignoraron {shapes.DeviceChrome} capas de la barra de estado y del indicador de inicio que dibuja el diseño");
-        sb.AppendLine($"- Píxeles distintos: {mismatchRatio:P1}");
-        sb.AppendLine($"- Imágenes: {runDir}");
+            sb.AppendLine($"- Ignored {shapes.DeviceChrome} status bar and home indicator layers drawn in the design");
+        sb.AppendLine($"- Different pixels: {mismatchRatio:P1}");
+        sb.AppendLine($"- Images: {runDir}");
         sb.AppendLine();
 
         if (pairs.Count == 0)
         {
-            sb.AppendLine("## No se emparejó ningún elemento");
+            sb.AppendLine("## No element matched");
             sb.AppendLine();
-            sb.AppendLine("Ningún texto ni AutomationId de la app coincide con el diseño. " +
-                          "Revisa que la app esté mostrando la pantalla de este frame (mira side_by_side.png).");
+            sb.AppendLine("No text or AutomationId in the app matches the design. " +
+                          "Check that the app is showing this frame's screen (look at side_by_side.png).");
         }
         else if (diffs.Count == 0)
         {
-            sb.AppendLine("## Sin diferencias en los elementos emparejados");
+            sb.AppendLine("## No differences in the matched elements");
         }
         else
         {
-            sb.AppendLine($"## Diferencias ({diffs.Count})");
+            sb.AppendLine($"## Differences ({diffs.Count})");
             sb.AppendLine();
-            sb.AppendLine("| Elemento | Propiedad | Figma | App |");
+            sb.AppendLine("| Element | Property | Figma | App |");
             sb.AppendLine("|---|---|---|---|");
             foreach (var d in diffs)
                 sb.AppendLine($"| {d.Name} | {d.Property} | {d.Expected} | {d.Actual} |");
 
             sb.AppendLine();
-            sb.AppendLine("## Cómo corregirlo");
+            sb.AppendLine("## How to fix it");
             sb.AppendLine();
             foreach (var e in elements.Where(e => e.Status == ElementStatus.Differs))
             {
@@ -717,26 +717,26 @@ public sealed partial class ScreenComparer(Settings settings)
         if (statusBarClock.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine($"Se ignoró la hora de la barra de estado del diseño ({string.Join(", ", statusBarClock.Select(m => m.Text))}).");
+            sb.AppendLine($"Ignored the design's status bar clock ({string.Join(", ", statusBarClock.Select(m => m.Text))}).");
         }
 
         if (missingText.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine($"## Textos del diseño que no están en la app ({missingText.Count})");
+            sb.AppendLine($"## Design texts missing from the app ({missingText.Count})");
             sb.AppendLine();
             // Los elementos que faltan están en el mismo orden que missingText.
             var missingElements = elements.Where(e => e.Status == ElementStatus.Missing);
             foreach (var (m, e) in missingText.Zip(missingElements).Take(40))
                 sb.AppendLine($"- {Label(m)} ({m.Bounds.Scale(scale)}) — {e.Fix}");
-            if (missingText.Count > 40) sb.AppendLine($"- … y {missingText.Count - 40} más");
+            if (missingText.Count > 40) sb.AppendLine($"- … and {missingText.Count - 40} more");
         }
 
         var missingShapes = shapes.Checks.Where(k => k.Actual is null).ToList();
         if (missingShapes.Count > 0)
         {
             sb.AppendLine();
-            sb.AppendLine($"## Capas sin texto del diseño que no se encontraron en la app ({missingShapes.Count})");
+            sb.AppendLine($"## Design non-text layers not found in the app ({missingShapes.Count})");
             sb.AppendLine();
             var fixes = elements.Where(e => e.Status == ElementStatus.Missing).ToLookup(e => e.Name, e => e.Fix);
             foreach (var k in missingShapes)
@@ -746,8 +746,8 @@ public sealed partial class ScreenComparer(Settings settings)
         if (shapes.NotMeasurable > 0)
         {
             sb.AppendLine();
-            sb.AppendLine($"{shapes.NotMeasurable} capas sin texto no se distinguen de su fondo en el diseño y no se compararon. " +
-                          "Para comparar una, pon su nombre de capa como AutomationId en la app.");
+            sb.AppendLine($"{shapes.NotMeasurable} non-text layers can't be told apart from their background in the design and weren't compared. " +
+                          "To compare one, use its layer name as the AutomationId in the app.");
         }
 
         return sb.ToString();
@@ -766,7 +766,7 @@ public sealed partial class ScreenComparer(Settings settings)
         if (d.Text is null || d.Text.Trim() == d.Name.Trim()) return d.Name;
         var text = d.Text.ReplaceLineEndings(" ").Trim();
         if (text.Length > 40) text = text[..40] + "…";
-        return $"{d.Name} «{text}»";
+        return $"{d.Name} \"{text}\"";
     }
 
     static SKRect ToSk(Rect r) => SKRect.Create((float)r.X, (float)r.Y, (float)r.Width, (float)r.Height);

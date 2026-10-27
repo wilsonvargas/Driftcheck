@@ -45,8 +45,8 @@ public class HorizontalFitTests : IDisposable
 
         Assert.Equal(3, result.Matched);
         Assert.Empty(result.Diffs);
-        Assert.Contains("1:1 en dp", result.Report);
-        Assert.Contains("19 dp más angosto", result.Report);
+        Assert.Contains("1:1 in dp", result.Report);
+        Assert.Contains("19 dp narrower", result.Report);
     }
 
     [Fact]
