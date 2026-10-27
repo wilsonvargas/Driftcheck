@@ -31,7 +31,7 @@ To try a change end to end, the sample apps in `samples/` reproduce a screen of 
 
 1. Fork the repo and create a branch from `master` (`feature/...` for features, `hotfix/...` for fixes).
 2. Keep each pull request focused on one change, and add or update tests for any change in the comparison.
-3. Make sure `dotnet test` passes. CI runs the build and the tests on Windows and macOS.
+3. Make sure `dotnet test` passes. CI runs the build and the tests on Windows for every pull request, and on Windows and macOS after merging to `master`.
 4. Describe what changed and why; for comparison changes, include the before/after fidelity or differences on a sample screen when possible.
 
 Code comments are currently written in Spanish; new comments in either Spanish or English are fine. Match the style of the surrounding code.
