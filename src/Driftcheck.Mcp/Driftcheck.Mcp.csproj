@@ -38,7 +38,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <!-- README corto para NuGet.org, que no muestra el HTML del README del repo. -->
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="..\..\assets\icon-128.png" Pack="true" PackagePath="\" />
     <!-- Lo lee el registro de MCP para saber cómo arrancar el servidor. -->
     <None Include=".mcp\server.json" Pack="true" PackagePath="\.mcp\" />
