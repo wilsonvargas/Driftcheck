@@ -483,3 +483,8 @@ $RECYCLE.BIN/
 
 # Xcode (helper de accesibilidad de iOS)
 xcuserdata/
+
+# Archivos locales que no se publican
+.claude/settings.local.json
+docs/*.pdf
+brag-output/
