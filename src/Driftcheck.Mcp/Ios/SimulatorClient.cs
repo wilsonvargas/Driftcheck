@@ -60,14 +60,14 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
                 {
                     if (device.GetProperty("state").GetString() != "Booted") continue;
                     result.Add(new DeviceInfo(device.GetProperty("udid").GetString()!,
-                        $"Simulador de iOS, {device.GetProperty("name").GetString()} ({os})"));
+                        $"iOS Simulator, {device.GetProperty("name").GetString()} ({os})"));
                 }
             }
             return result;
         }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException)
         {
-            throw new InvalidOperationException($"No entiendo la lista de simuladores de xcrun simctl: {e.Message}", e);
+            throw new InvalidOperationException($"Could not parse the simulator list from xcrun simctl: {e.Message}", e);
         }
     }
 
@@ -85,7 +85,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
         await RunTextAsync("xcrun", ["simctl", "io", udid, "screenshot", "--type=png", screenshotPath], null, SimctlTimeout, ct);
 
         using var codec = SKCodec.Create(screenshotPath)
-            ?? throw new InvalidOperationException("No pude leer la captura del simulador.");
+            ?? throw new InvalidOperationException("Could not read the simulator screenshot.");
         var screen = ReadRect(root.RootElement.GetProperty("frame"));
         var pixelsPerPoint = codec.Info.Width / screen.Width;
 
@@ -207,7 +207,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
             }, DumpTimeout, ct);
 
         if (!File.Exists(output))
-            throw new InvalidOperationException("El helper de accesibilidad de iOS terminó sin escribir el árbol de la app.");
+            throw new InvalidOperationException("The iOS accessibility helper finished without writing the app's tree.");
         return await File.ReadAllTextAsync(output, ct);
     }
 
@@ -219,7 +219,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
     {
         var source = Path.Combine(AppContext.BaseDirectory, HelperFolder);
         if (!Directory.Exists(source))
-            throw new InvalidOperationException($"No encuentro el helper de accesibilidad de iOS en {source}. Vuelve a compilar Driftcheck.Mcp.");
+            throw new InvalidOperationException($"iOS accessibility helper not found in {source}. Build Driftcheck.Mcp again.");
 
         var derivedData = Path.Combine(settings.OutputDirectory, "ios-helper", HashSources(source));
         var products = Path.Combine(derivedData, "Build", "Products");
@@ -234,7 +234,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
                  "-destination", "generic/platform=iOS Simulator", "-derivedDataPath", derivedData, "-quiet"], null, BuildTimeout, ct);
 
             return FindXctestrun(products)
-                ?? throw new InvalidOperationException($"xcodebuild no generó el .xctestrun del helper en {products}.");
+                ?? throw new InvalidOperationException($"xcodebuild didn't generate the helper's .xctestrun in {products}.");
         }
         finally
         {
@@ -281,7 +281,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
             foreach (var (k, v) in env) psi.Environment[k] = v;
 
         using var process = Process.Start(psi)
-            ?? throw new InvalidOperationException($"No se pudo ejecutar {fileName}");
+            ?? throw new InvalidOperationException($"Could not run {fileName}");
 
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
         limit.CancelAfter(timeout);
@@ -298,8 +298,8 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
             catch (InvalidOperationException) { } // ya terminó
             ct.ThrowIfCancellationRequested();
             throw new InvalidOperationException(
-                $"{fileName} {string.Join(' ', args.Take(2))} no terminó en {timeout.TotalSeconds:0} s. " +
-                "Revisa que el simulador responda (que no esté bloqueado ni mostrando un diálogo) y vuelve a intentarlo.");
+                $"{fileName} {string.Join(' ', args.Take(2))} didn't finish in {timeout.TotalSeconds:0} s. " +
+                "Check that the simulator responds (that it isn't locked or showing a dialog) and try again.");
         }
 
         if (process.ExitCode != 0)
@@ -310,7 +310,7 @@ public sealed partial class SimulatorClient(Settings settings) : IDeviceClient
                 .Where(l => !l.Contains("DVTDeviceOperation") && !l.Contains("IDERunDestination"))
                 .TakeLast(15);
             throw new InvalidOperationException(
-                $"{fileName} {string.Join(' ', args.Take(2))} falló ({process.ExitCode}):\n{string.Join('\n', lines)}");
+                $"{fileName} {string.Join(' ', args.Take(2))} failed ({process.ExitCode}):\n{string.Join('\n', lines)}");
         }
 
         return await stdout;

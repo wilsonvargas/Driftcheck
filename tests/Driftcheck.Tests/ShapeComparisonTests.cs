@@ -49,7 +49,7 @@ public class ShapeComparisonTests : IDisposable
         Assert.Equal(100, result.Fidelity.Percent);
         // Botón, campo, línea, ícono y el fondo de la pantalla.
         Assert.Equal(5, result.Fidelity.Total);
-        Assert.Contains("Capas sin texto (formas, íconos, imágenes): 4", result.Report);
+        Assert.Contains("Non-text layers (shapes, icons, images): 4", result.Report);
     }
 
     [Fact]
@@ -59,8 +59,8 @@ public class ShapeComparisonTests : IDisposable
 
         Assert.Contains(result.Diffs, d => d is { Name: "Botón", Property: "background", Expected: "#9E56FF", Actual: "#FF8E56" });
         Assert.Contains(result.Diffs, d => d is { Name: "Botón", Property: "corner radius" });
-        Assert.Contains(result.Diffs, d => d is { Name: "Campo", Property: "border", Expected: "#FF8E56", Actual: "sin borde" });
-        Assert.Contains(result.Diffs, d => d is { Name: "Línea", Property: "background", Actual: "#FF8E56" });
+        Assert.Contains(result.Diffs, d => d is { Name: "Campo", Property: "border", Expected: "#FF8E56", Actual: "no border" });
+        Assert.Contains(result.Diffs, d => d is { Name: "Line", Property: "background", Actual: "#FF8E56" });
 
         // Sin el borde, el relleno ocupa su lugar: no es una diferencia de tamaño.
         Assert.DoesNotContain(result.Diffs, d => d.Name == "Campo" && d.Property is "width" or "height");
@@ -71,10 +71,10 @@ public class ShapeComparisonTests : IDisposable
     {
         var result = Compare(AsDesigned, AsDesigned with { Icon = false });
 
-        var icon = Assert.Single(result.Elements, e => e.Name == "Ícono");
+        var icon = Assert.Single(result.Elements, e => e.Name == "Icon");
         Assert.Equal(ElementStatus.Missing, icon.Status);
-        Assert.Contains("Falta un ícono de 20×20 dp", icon.Fix);
-        Assert.Contains("## Capas sin texto del diseño que no se encontraron en la app (1)", result.Report);
+        Assert.Contains("Missing a 20×20 dp icon", icon.Fix);
+        Assert.Contains("## Design non-text layers not found in the app (1)", result.Report);
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class ShapeComparisonTests : IDisposable
         // Dispositivo 20 dp más angosto; la línea es una de dos que crecen en su fila, así que pierde 10.
         var result = Compare(AsDesigned, AsDesigned with { Width = 380, LineWidthShare = 0.5 }, lineShare: 0.5);
 
-        Assert.DoesNotContain(result.Diffs, d => d.Name == "Línea");
+        Assert.DoesNotContain(result.Diffs, d => d.Name == "Line");
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class ShapeComparisonTests : IDisposable
 
         var diff = Assert.Single(result.Diffs, d => d.Property == "background");
         Assert.Equal(faded.Hex, diff.Expected);
-        Assert.StartsWith("`BackgroundColor=\"#9E56FF\"` (en el diseño se ve #DBC6F8", diff.Fix);
+        Assert.StartsWith("`BackgroundColor=\"#9E56FF\"` (it renders as #DBC6F8 in the design", diff.Fix);
     }
 
     [Theory]
@@ -116,7 +116,7 @@ public class ShapeComparisonTests : IDisposable
             new("Frame", "FRAME", LineBox, Line, null, null, null, null, null, "1:3", ShapeKind.Shape, WidthShare: lineShare < 1 ? lineShare : null),
             new("Vector", "VECTOR", IconBox, Ink, null, null, null, null, null, "1:4", ShapeKind.Icon),
         };
-        // "Frame" y "Vector" son nombres automáticos: el reporte los muestra como "Línea" e "Ícono".
+        // "Frame" y "Vector" son nombres automáticos: el reporte los muestra como "Line" e "Icon".
         var design = new DesignFrame("key", "1:0", "Login", new Rect(0, 0, 400, 800), [], Shapes: shapes, Background: Page);
 
         var designPng = Path.Combine(_dir, "design.png");

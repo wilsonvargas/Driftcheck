@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -150,25 +150,25 @@
 <main>
   <section class="card">
     <div class="toolbar">
-      <div class="segmented" role="group" aria-label="Modo de vista" id="modes">
-        <button data-mode="slider" aria-pressed="true">Deslizador</button>
-        <button data-mode="opacity" aria-pressed="false">Transparencia</button>
-        <button data-mode="diff" aria-pressed="false">Diferencias</button>
-        <button data-mode="side" aria-pressed="false">Lado a lado</button>
+      <div class="segmented" role="group" aria-label="View mode" id="modes">
+        <button data-mode="slider" aria-pressed="true">Slider</button>
+        <button data-mode="opacity" aria-pressed="false">Opacity</button>
+        <button data-mode="diff" aria-pressed="false">Diff</button>
+        <button data-mode="side" aria-pressed="false">Side by side</button>
       </div>
       <label id="opacityControl" hidden>Figma <input type="range" id="opacity" min="0" max="100" value="50"> App</label>
-      <label><input type="checkbox" id="showBoxes" checked> Cajas</label>
-      <span class="hint"><kbd>1</kbd>–<kbd>4</kbd> cambian la vista</span>
+      <label><input type="checkbox" id="showBoxes" checked> Boxes</label>
+      <span class="hint"><kbd>1</kbd>–<kbd>4</kbd> switch the view</span>
     </div>
     <div class="viewer slider" id="viewer">
       <div class="frame" id="designFrame">
-        <img id="designSide" alt="Diseño de Figma">
+        <img id="designSide" alt="Figma design">
         <span class="tag left">Figma</span>
       </div>
       <div class="frame" id="mainFrame">
-        <img id="appImg" alt="Captura de la app">
+        <img id="appImg" alt="App screenshot">
         <img id="designTop" alt="">
-        <img id="diffImg" alt="Diferencias">
+        <img id="diffImg" alt="Differences">
         <svg class="boxes" id="boxes" aria-hidden="true"></svg>
         <div class="handle" id="handle"></div>
         <span class="tag left overlay">Figma</span>
@@ -178,7 +178,7 @@
   </section>
 
   <aside class="card">
-    <div class="filters" role="group" aria-label="Filtrar elementos" id="filters"></div>
+    <div class="filters" role="group" aria-label="Filter elements" id="filters"></div>
     <div class="list" id="list"></div>
   </aside>
 </main>
@@ -187,7 +187,6 @@
 <script>
 const data = __DATA__;
 
-const labels = { x: "x", y: "y", width: "ancho", height: "alto", text: "texto", background: "fondo", "text color": "color del texto" };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 // Las sugerencias vienen en markdown simple: solo `código`.
@@ -199,7 +198,7 @@ $("title").textContent = data.title;
 $("meta").textContent = [data.device, data.app, data.date].filter(Boolean).join(" · ");
 if (data.warnings.length) {
   $("warnings").hidden = false;
-  $("warnings").innerHTML = data.warnings.map(w => `<div class="warning" role="alert"><strong>Atención</strong>${md(w)}</div>`).join("");
+  $("warnings").innerHTML = data.warnings.map(w => `<div class="warning" role="alert"><strong>Warning</strong>${md(w)}</div>`).join("");
 }
 const count = s => data.elements.filter(e => e.status === s).length;
 const f = data.fidelity;
@@ -207,24 +206,24 @@ if (f.total > 0) {
   const color = f.percent >= 90 ? "var(--ok)" : f.percent >= 70 ? "var(--bad)" : "var(--missing)";
   const c = 2 * Math.PI * 26;
   const change = f.previous == null ? "" : f.percent === f.previous
-    ? `<span class="delta same">igual que antes</span>`
-    : `<span class="delta ${f.percent > f.previous ? "up" : "down"}">${f.percent > f.previous ? "+" : "−"}${Math.abs(f.percent - f.previous)} desde ${f.previous} %</span>`;
+    ? `<span class="delta same">same as before</span>`
+    : `<span class="delta ${f.percent > f.previous ? "up" : "down"}">${f.percent > f.previous ? "+" : "−"}${Math.abs(f.percent - f.previous)} from ${f.previous} %</span>`;
   $("score").innerHTML = `
-    <svg class="ring" viewBox="0 0 64 64" role="img" aria-label="Fidelidad ${f.percent} %">
+    <svg class="ring" viewBox="0 0 64 64" role="img" aria-label="Fidelity ${f.percent} %">
       <circle class="track" cx="32" cy="32" r="26"/>
       <circle class="value" cx="32" cy="32" r="26" stroke="${color}" stroke-dasharray="${c}" stroke-dashoffset="${c}"/>
       <text x="32" y="32">${f.percent}%</text>
     </svg>
     <div>
-      <div class="score-label">Fidelidad${change}</div>
-      <div class="counts"><b>${count("ok")}</b> coinciden · <b>${count("differs")}</b> difieren · <b>${count("missing")}</b> faltan</div>
-      <div class="counts">Píxeles distintos: ${(data.mismatch * 100).toFixed(1)} %</div>
+      <div class="score-label">Fidelity${change}</div>
+      <div class="counts"><b>${count("ok")}</b> match · <b>${count("differs")}</b> differ · <b>${count("missing")}</b> missing</div>
+      <div class="counts">Different pixels: ${(data.mismatch * 100).toFixed(1)} %</div>
     </div>`;
   requestAnimationFrame(() => requestAnimationFrame(() =>
     document.querySelector(".ring .value").style.strokeDashoffset = c * (1 - f.percent / 100)));
 }
-$("footer").textContent = "Fidelidad: elementos emparejados sin diferencias, sobre los emparejados más los textos del diseño que faltan en la app. " +
-  "Las sugerencias son pistas: la misma diferencia puede venir del elemento o de su contenedor.";
+$("footer").textContent = "Fidelity: matched elements with no differences, over the matched elements plus the design elements missing from the app. " +
+  "Suggestions are hints: the same difference can come from the element or from its container.";
 
 // Imágenes
 const viewer = $("viewer");
@@ -292,9 +291,9 @@ setMode("slider");
 
 // Lista de elementos
 const groups = [
-  { status: "differs", label: "Difieren" },
-  { status: "missing", label: "Faltan" },
-  { status: "ok", label: "Coinciden" },
+  { status: "differs", label: "Differ" },
+  { status: "missing", label: "Missing" },
+  { status: "ok", label: "Match" },
 ];
 let filter = count("differs") ? "differs" : count("missing") ? "missing" : "ok";
 let selected = -1;
@@ -308,14 +307,14 @@ function renderFilters() {
 function renderList() {
   const items = data.elements.map((e, i) => [e, i]).filter(([e]) => e.status === filter);
   if (!items.length) {
-    $("list").innerHTML = `<div class="empty">${filter === "differs" ? "Sin diferencias en los elementos emparejados." : "Nada por aquí."}</div>`;
+    $("list").innerHTML = `<div class="empty">${filter === "differs" ? "No differences in the matched elements." : "Nothing here."}</div>`;
     return;
   }
   $("list").innerHTML = items.map(([e, i]) => `
     <div class="item${i === selected ? " selected" : ""}" data-index="${i}" tabindex="0">
       <div class="item-head"><span class="dot ${e.status}"></span><span class="name">${esc(e.name)}</span>${e.id ? `<span class="id">${esc(e.id)}</span>` : ""}</div>
       ${e.diffs.length ? `<table><tr><th></th><th>Figma</th><th>App</th></tr>${e.diffs.map(d =>
-        `<tr><td>${esc(labels[d.property] ?? d.property)}</td><td>${value(d.figma)}</td><td>${value(d.app)}</td></tr>`).join("")}</table>` : ""}
+        `<tr><td>${esc(d.property)}</td><td>${value(d.figma)}</td><td>${value(d.app)}</td></tr>`).join("")}</table>` : ""}
       ${[...new Set(e.diffs.map(d => d.fix).filter(Boolean))].map(fix => `<div class="fix">${md(fix)}</div>`).join("")}
       ${e.fix ? `<div class="fix">${md(e.fix)}</div>` : ""}
     </div>`).join("");

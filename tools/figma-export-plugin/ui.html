@@ -5,13 +5,13 @@
   .error { color: #c00; }
   button { margin-right: 6px; }
 </style>
-<p id="status">Exportando…</p>
+<p id="status">Exporting…</p>
 <p id="help" hidden>
-  Guárdalo en tu carpeta <b>Descargas</b>: Driftcheck lo encuentra solo. Si queda en otra carpeta, pídele a tu
-  asistente que lo importe con su ruta (<code>import_design</code>).
+  Save it in your <b>Downloads</b> folder: Driftcheck finds it on its own. If it ends up in another folder, ask your
+  assistant to import it by its path (<code>import_design</code>).
 </p>
-<button id="download" disabled>Descargar</button>
-<button id="again">Exportar de nuevo</button>
+<button id="download" disabled>Download</button>
+<button id="again">Export again</button>
 <script>
   let data;
   const status = document.getElementById("status");
@@ -35,7 +35,7 @@
     }
 
     data = message;
-    status.innerHTML = "Listo: <b></b> (<span></span>).";
+    status.innerHTML = "Done: <b></b> (<span></span>).";
     status.querySelector("b").textContent = data.nodeName;
     status.querySelector("span").textContent = `${(data.json.length / 1024 / 1024).toFixed(1)} MB`;
     help.hidden = false;

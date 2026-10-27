@@ -10,9 +10,9 @@ public class FixSuggesterTests
     static readonly DesignElement Title = new("Text", "TEXT", new Rect(35, 200, 210, 38), null, "Create account", 32, "Inter", 600, null);
 
     [Theory]
-    [InlineData(UiFramework.Compose, "Muévelo 4 dp a la izquierda: `Modifier.padding(start = …)` −4.dp (o el padding del contenedor)")]
-    [InlineData(UiFramework.AndroidViews, "Muévelo 4 dp a la izquierda: `android:layout_marginStart` −4dp (o el padding del contenedor)")]
-    [InlineData(UiFramework.Generic, "Muévelo 4 dp a la izquierda: margen izquierdo −4 dp (o el padding del contenedor)")]
+    [InlineData(UiFramework.Compose, "Move it 4 dp left: `Modifier.padding(start = …)` −4.dp (or the container's padding)")]
+    [InlineData(UiFramework.AndroidViews, "Move it 4 dp left: `android:layout_marginStart` −4dp (or the container's padding)")]
+    [InlineData(UiFramework.Generic, "Move it 4 dp left: left margin −4 dp (or the container's padding)")]
     public void PositionUsesFrameworkProperty(UiFramework fw, string expected)
     {
         var fix = FixSuggester.Suggest(fw, "dp", Button, new ElementDiff("Sign up", "x", "35", "39"));
@@ -24,7 +24,7 @@ public class FixSuggesterTests
     {
         var diff = new ElementDiff("Sign up", "background", "#0D001F", "#1976D2");
 
-        Assert.Equal("`Modifier.background(Color(0xFF0D001F))` o `ButtonDefaults.buttonColors(containerColor = Color(0xFF0D001F))`",
+        Assert.Equal("`Modifier.background(Color(0xFF0D001F))` or `ButtonDefaults.buttonColors(containerColor = Color(0xFF0D001F))`",
             FixSuggester.Suggest(UiFramework.Compose, "dp", Button, diff));
         Assert.Equal("`backgroundColor = UIColor(red: 0.051, green: 0, blue: 0.122, alpha: 1)`",
             FixSuggester.Suggest(UiFramework.UIKit, "pt", Button, diff));
@@ -36,14 +36,14 @@ public class FixSuggesterTests
         var fix = FixSuggester.Suggest(UiFramework.Maui, "dp", Title, new ElementDiff("Text", "width", "210", "196"));
         Assert.Equal(fix, FixSuggester.Suggest(UiFramework.Maui, "dp", Title, new ElementDiff("Text", "height", "38", "30")));
 
-        Assert.Equal("Las letras no miden lo mismo que en Figma; revisa la fuente: en Figma es Inter 32 peso 600. " +
+        Assert.Equal("The glyphs don't measure the same as in Figma; check the font: in Figma it is Inter 32 weight 600. " +
                      "`FontFamily=\"Inter\"`, `FontSize=\"32\"`, `CharacterSpacing`", fix);
     }
 
     [Fact]
     public void MissingTextSuggestsAddingIt()
     {
-        Assert.Equal("Agrega `Text(\"Create account\")` (Inter 32 peso 600)", FixSuggester.AddText(UiFramework.SwiftUI, Title));
+        Assert.Equal("Add `Text(\"Create account\")` (Inter 32 weight 600)", FixSuggester.AddText(UiFramework.SwiftUI, Title));
     }
 
     [Fact]
@@ -51,9 +51,9 @@ public class FixSuggesterTests
     {
         var icon = new DesignElement("google", "FRAME", new Rect(100, 300, 24, 24), null, null, null, null, null, null, Shape: ShapeKind.Icon);
 
-        Assert.Equal("Falta un ícono de 20×20 dp (la capa en Figma mide 24×24)",
+        Assert.Equal("Missing a 20×20 dp icon (the Figma layer is 24×24)",
             FixSuggester.AddShape(UiFramework.Maui, "dp", icon, new Rect(102, 302, 20, 20)));
-        Assert.Equal("Falta un ícono de 24×24 dp", FixSuggester.AddShape(UiFramework.Maui, "dp", icon, icon.Bounds));
+        Assert.Equal("Missing a 24×24 dp icon", FixSuggester.AddShape(UiFramework.Maui, "dp", icon, icon.Bounds));
     }
 
     [Theory]

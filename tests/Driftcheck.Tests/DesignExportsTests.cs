@@ -96,7 +96,7 @@ public class DesignExportsTests : IDisposable
         File.WriteAllText(path, """{"nodes":{}}""");
 
         var error = Assert.Throws<InvalidOperationException>(() => new DesignExports(new Settings()).Import(path));
-        Assert.Contains("no es un export de Driftcheck", error.Message);
+        Assert.Contains("is not a Driftcheck export", error.Message);
     }
 
     static FigmaClient Client() => new(new HttpClient(new NoNetwork()), new Settings());

@@ -23,7 +23,7 @@ public static class FixSuggester
         "swiftui" => UiFramework.SwiftUI,
         "flutter" => UiFramework.Flutter,
         _ => throw new ArgumentException(
-            $"Framework desconocido: {name}. Usa maui, android, compose, uikit, swiftui o flutter."),
+            $"Unknown framework: {name}. Use maui, android, compose, uikit, swiftui or flutter."),
     };
 
     /// <summary>Sugerencia para una diferencia de <see cref="ScreenComparer"/>, o null si no hay una útil.</summary>
@@ -44,8 +44,8 @@ public static class FixSuggester
             "border" when Rgb.TryParse(diff.Expected, out var c) => Border(fw, c),
             "icon color" when Rgb.TryParse(diff.Expected, out var c) => FigmaColor(d.Fill, c, x => IconColor(fw, x)),
             "image" => d.Shape == ShapeKind.Icon
-                ? "El ícono no se ve como en Figma: revisa que sea el mismo recurso (exporta el vector de la capa)"
-                : "La imagen no se ve como en Figma: revisa que sea el mismo recurso y cómo se escala (Aspect)",
+                ? "The icon doesn't look like in Figma: check that it is the same asset (export the layer's vector)"
+                : "The image doesn't look like in Figma: check that it is the same asset and how it is scaled (Aspect)",
             _ => null,
         };
     }
@@ -57,14 +57,15 @@ public static class FixSuggester
     public static string AddShape(UiFramework fw, string unit, DesignElement d, Rect visible)
     {
         var size = $"{N(visible.Width)}×{N(visible.Height)} {unit}";
-        if (d.Shape != ShapeKind.Shape && (N(d.Bounds.Width) != N(visible.Width) || N(d.Bounds.Height) != N(visible.Height)))
-            size += $" (la capa en Figma mide {N(d.Bounds.Width)}×{N(d.Bounds.Height)})";
+        var layer = d.Shape != ShapeKind.Shape && (N(d.Bounds.Width) != N(visible.Width) || N(d.Bounds.Height) != N(visible.Height))
+            ? $" (the Figma layer is {N(d.Bounds.Width)}×{N(d.Bounds.Height)})"
+            : "";
         return d.Shape switch
         {
-            ShapeKind.Icon => $"Falta un ícono de {size}",
-            ShapeKind.Image => $"Falta una imagen de {size}",
-            _ when Math.Min(visible.Width, visible.Height) <= 2 => $"Falta una línea de {size}" + (d.Fill is { } f ? $" ({f.Hex})" : ""),
-            _ => $"Falta una forma de {size}" + (d.Fill is { } f && fw != UiFramework.Generic ? $": {Background(fw, f)}" : d.Fill is { } g ? $" con fondo {g.Hex}" : ""),
+            ShapeKind.Icon => $"Missing a {size} icon{layer}",
+            ShapeKind.Image => $"Missing a {size} image{layer}",
+            _ when Math.Min(visible.Width, visible.Height) <= 2 => $"Missing a {size} line" + (d.Fill is { } f ? $" ({f.Hex})" : ""),
+            _ => $"Missing a {size} shape" + (d.Fill is { } f && fw != UiFramework.Generic ? $": {Background(fw, f)}" : d.Fill is { } g ? $" with background {g.Hex}" : ""),
         };
     }
 
@@ -75,13 +76,13 @@ public static class FixSuggester
         var font = d.FontSize is not null ? $" ({FontDescription(d)})" : "";
         return fw switch
         {
-            UiFramework.Maui => $"Agrega `<Label Text=\"{text}\" />`{font}",
-            UiFramework.AndroidViews => $"Agrega un `<TextView android:text=\"{text}\" />`{font}",
-            UiFramework.Compose => $"Agrega `Text(\"{text}\")`{font}",
-            UiFramework.UIKit => $"Agrega un `UILabel` con `text = \"{text}\"`{font}",
-            UiFramework.SwiftUI => $"Agrega `Text(\"{text}\")`{font}",
-            UiFramework.Flutter => $"Agrega `Text('{text}')`{font}",
-            _ => $"Falta el texto «{d.Text}»{font}",
+            UiFramework.Maui => $"Add `<Label Text=\"{text}\" />`{font}",
+            UiFramework.AndroidViews => $"Add a `<TextView android:text=\"{text}\" />`{font}",
+            UiFramework.Compose => $"Add `Text(\"{text}\")`{font}",
+            UiFramework.UIKit => $"Add a `UILabel` with `text = \"{text}\"`{font}",
+            UiFramework.SwiftUI => $"Add `Text(\"{text}\")`{font}",
+            UiFramework.Flutter => $"Add `Text('{text}')`{font}",
+            _ => $"Missing the text \"{d.Text}\"{font}",
         };
     }
 
@@ -89,27 +90,27 @@ public static class FixSuggester
 
     static string Move(UiFramework fw, string unit, double delta, bool horizontal)
     {
-        var direction = horizontal ? (delta > 0 ? "a la derecha" : "a la izquierda") : (delta > 0 ? "hacia abajo" : "hacia arriba");
+        var direction = horizontal ? (delta > 0 ? "right" : "left") : (delta > 0 ? "down" : "up");
         var d = Signed(delta);
         var property = (fw, horizontal) switch
         {
-            (UiFramework.Maui, true) => $"`Margin` izquierdo {d}",
-            (UiFramework.Maui, false) => $"`Margin` superior {d}",
+            (UiFramework.Maui, true) => $"left `Margin` {d}",
+            (UiFramework.Maui, false) => $"top `Margin` {d}",
             (UiFramework.AndroidViews, true) => $"`android:layout_marginStart` {d}dp",
             (UiFramework.AndroidViews, false) => $"`android:layout_marginTop` {d}dp",
             (UiFramework.Compose, true) => $"`Modifier.padding(start = …)` {d}.dp",
             (UiFramework.Compose, false) => $"`Modifier.padding(top = …)` {d}.dp",
-            (UiFramework.UIKit, true) => $"constante del `leadingAnchor` {d}",
-            (UiFramework.UIKit, false) => $"constante del `topAnchor` {d}",
+            (UiFramework.UIKit, true) => $"`leadingAnchor` constant {d}",
+            (UiFramework.UIKit, false) => $"`topAnchor` constant {d}",
             (UiFramework.SwiftUI, true) => $"`.padding(.leading, …)` {d}",
             (UiFramework.SwiftUI, false) => $"`.padding(.top, …)` {d}",
-            (UiFramework.Flutter, true) => $"`EdgeInsets` izquierdo {d}",
-            (UiFramework.Flutter, false) => $"`EdgeInsets` superior {d}",
-            (_, true) => $"margen izquierdo {d} {unit}",
-            (_, false) => $"margen superior {d} {unit}",
+            (UiFramework.Flutter, true) => $"left `EdgeInsets` {d}",
+            (UiFramework.Flutter, false) => $"top `EdgeInsets` {d}",
+            (_, true) => $"left margin {d} {unit}",
+            (_, false) => $"top margin {d} {unit}",
         };
-        var container = horizontal ? "el padding del contenedor" : "el espacio con el elemento de arriba";
-        return $"Muévelo {N(Math.Abs(delta))} {unit} {direction}: {property} (o {container})";
+        var container = horizontal ? "the container's padding" : "the spacing to the element above";
+        return $"Move it {N(Math.Abs(delta))} {unit} {direction}: {property} (or {container})";
     }
 
     static string Size(UiFramework fw, string unit, string expected, bool width) => (fw, width) switch
@@ -126,8 +127,8 @@ public static class FixSuggester
         (UiFramework.SwiftUI, false) => $"`.frame(height: {expected})`",
         (UiFramework.Flutter, true) => $"`SizedBox(width: {expected})`",
         (UiFramework.Flutter, false) => $"`SizedBox(height: {expected})`",
-        (_, true) => $"Ancho de {expected} {unit}",
-        (_, false) => $"Alto de {expected} {unit}",
+        (_, true) => $"Width of {expected} {unit}",
+        (_, false) => $"Height of {expected} {unit}",
     };
 
     /// <summary>
@@ -137,7 +138,7 @@ public static class FixSuggester
     /// </summary>
     static string Font(UiFramework fw, DesignElement d)
     {
-        var expected = d.FontSize is null ? "" : $": en Figma es {FontDescription(d)}";
+        var expected = d.FontSize is null ? "" : $": in Figma it is {FontDescription(d)}";
         var size = d.FontSize is { } s ? N(s) : "…";
         var family = d.FontFamily ?? "…";
         var props = fw switch
@@ -148,9 +149,9 @@ public static class FixSuggester
             UiFramework.UIKit => $"`UIFont(name: \"{family}\", size: {size})`, `kern`",
             UiFramework.SwiftUI => $"`.font(.custom(\"{family}\", size: {size}))`, `.kerning`",
             UiFramework.Flutter => $"`TextStyle(fontFamily: '{family}', fontSize: {size}, letterSpacing: …)`",
-            _ => "familia, tamaño, peso y espaciado de la fuente",
+            _ => "font family, size, weight and spacing",
         };
-        return $"Las letras no miden lo mismo que en Figma; revisa la fuente{expected}. {props}";
+        return $"The glyphs don't measure the same as in Figma; check the font{expected}. {props}";
     }
 
     static string SetText(UiFramework fw, string expected)
@@ -164,19 +165,19 @@ public static class FixSuggester
             UiFramework.UIKit => $"`text = \"{t}\"`",
             UiFramework.SwiftUI => $"`Text(\"{t}\")`",
             UiFramework.Flutter => $"`Text('{t}')`",
-            _ => $"Cambia el texto a «{expected}»",
+            _ => $"Change the text to \"{expected}\"",
         };
     }
 
     static string Background(UiFramework fw, Rgb c) => fw switch
     {
         UiFramework.Maui => $"`BackgroundColor=\"{c.Hex}\"`",
-        UiFramework.AndroidViews => $"`android:background=\"{c.Hex}\"` (en un botón de Material, `app:backgroundTint`)",
-        UiFramework.Compose => $"`Modifier.background({ComposeColor(c)})` o `ButtonDefaults.buttonColors(containerColor = {ComposeColor(c)})`",
+        UiFramework.AndroidViews => $"`android:background=\"{c.Hex}\"` (on a Material button, `app:backgroundTint`)",
+        UiFramework.Compose => $"`Modifier.background({ComposeColor(c)})` or `ButtonDefaults.buttonColors(containerColor = {ComposeColor(c)})`",
         UiFramework.UIKit => $"`backgroundColor = {UIColor(c)}`",
         UiFramework.SwiftUI => $"`.background({SwiftUIColor(c)})`",
         UiFramework.Flutter => $"`color: {FlutterColor(c)}`",
-        _ => $"Color de fondo {c.Hex}",
+        _ => $"Background color {c.Hex}",
     };
 
     static string TextColor(UiFramework fw, Rgb c) => fw switch
@@ -187,7 +188,7 @@ public static class FixSuggester
         UiFramework.UIKit => $"`textColor = {UIColor(c)}`",
         UiFramework.SwiftUI => $"`.foregroundStyle({SwiftUIColor(c)})`",
         UiFramework.Flutter => $"`TextStyle(color: {FlutterColor(c)})`",
-        _ => $"Color de texto {c.Hex}",
+        _ => $"Text color {c.Hex}",
     };
 
     /// <summary>
@@ -196,40 +197,40 @@ public static class FixSuggester
     /// </summary>
     static string FigmaColor(Rgb? figma, Rgb rendered, Func<Rgb, string> suggest) =>
         figma is { } f && f.DistanceTo(rendered) > 8
-            ? $"{suggest(f)} (en el diseño se ve {rendered.Hex}: la capa o un contenedor tiene opacidad)"
+            ? $"{suggest(f)} (it renders as {rendered.Hex} in the design: the layer or a container has opacity)"
             : suggest(rendered);
 
     static string CornerRadius(UiFramework fw, string unit, string r) => fw switch
     {
-        UiFramework.Maui => $"`CornerRadius=\"{r}\"` (en un `Border`, `StrokeShape=\"RoundRectangle {r}\"`)",
-        UiFramework.AndroidViews => $"`app:cornerRadius=\"{r}dp\"` (o `android:radius` en el `<corners>` del drawable)",
+        UiFramework.Maui => $"`CornerRadius=\"{r}\"` (on a `Border`, `StrokeShape=\"RoundRectangle {r}\"`)",
+        UiFramework.AndroidViews => $"`app:cornerRadius=\"{r}dp\"` (or `android:radius` in the drawable's `<corners>`)",
         UiFramework.Compose => $"`RoundedCornerShape({r}.dp)`",
         UiFramework.UIKit => $"`layer.cornerRadius = {r}`",
         UiFramework.SwiftUI => $"`.clipShape(RoundedRectangle(cornerRadius: {r}))`",
         UiFramework.Flutter => $"`BorderRadius.circular({r})`",
-        _ => $"Radio de las esquinas de {r} {unit}",
+        _ => $"Corner radius of {r} {unit}",
     };
 
     static string Border(UiFramework fw, Rgb c) => fw switch
     {
-        UiFramework.Maui => $"`Stroke=\"{c.Hex}\"` en el `Border` (o `BorderColor` en un `Button`)",
-        UiFramework.AndroidViews => $"`app:strokeColor=\"{c.Hex}\"` (o `<stroke android:color=\"{c.Hex}\" />` en el drawable)",
+        UiFramework.Maui => $"`Stroke=\"{c.Hex}\"` on the `Border` (or `BorderColor` on a `Button`)",
+        UiFramework.AndroidViews => $"`app:strokeColor=\"{c.Hex}\"` (or `<stroke android:color=\"{c.Hex}\" />` in the drawable)",
         UiFramework.Compose => $"`Modifier.border(1.dp, {ComposeColor(c)}, shape)`",
         UiFramework.UIKit => $"`layer.borderColor = {UIColor(c)}.cgColor`",
         UiFramework.SwiftUI => $"`.overlay(RoundedRectangle(cornerRadius: …).stroke({SwiftUIColor(c)}))`",
         UiFramework.Flutter => $"`Border.all(color: {FlutterColor(c)})`",
-        _ => $"Borde de color {c.Hex}",
+        _ => $"Border color {c.Hex}",
     };
 
     static string IconColor(UiFramework fw, Rgb c) => fw switch
     {
-        UiFramework.Maui => $"`Color=\"{c.Hex}\"` en el `FontImageSource` (o `IconTintColorBehavior`)",
+        UiFramework.Maui => $"`Color=\"{c.Hex}\"` on the `FontImageSource` (or `IconTintColorBehavior`)",
         UiFramework.AndroidViews => $"`app:tint=\"{c.Hex}\"`",
         UiFramework.Compose => $"`tint = {ComposeColor(c)}`",
         UiFramework.UIKit => $"`tintColor = {UIColor(c)}`",
         UiFramework.SwiftUI => $"`.foregroundStyle({SwiftUIColor(c)})`",
         UiFramework.Flutter => $"`Icon(…, color: {FlutterColor(c)})`",
-        _ => $"Color del ícono {c.Hex}",
+        _ => $"Icon color {c.Hex}",
     };
 
     static string FontDescription(DesignElement d)
@@ -237,7 +238,7 @@ public static class FixSuggester
         var parts = new List<string>();
         if (d.FontFamily is { } f) parts.Add(f);
         if (d.FontSize is { } s) parts.Add(N(s));
-        if (d.FontWeight is { } w && w != 400) parts.Add($"peso {N(w)}");
+        if (d.FontWeight is { } w && w != 400) parts.Add($"weight {N(w)}");
         return string.Join(" ", parts);
     }
 

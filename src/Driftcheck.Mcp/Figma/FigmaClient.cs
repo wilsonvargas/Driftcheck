@@ -46,8 +46,8 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
     readonly DesignExports exports = new(settings);
 
     const string PluginHint =
-        "Sin la API, exporta el frame con el plugin de Driftcheck en Figma (tools/figma-export-plugin) y deja " +
-        "el archivo .driftcheck.json en Descargas, o pásale su ruta a import_design.";
+        "Without the API, export the frame with the Driftcheck plugin in Figma (tools/figma-export-plugin) and leave " +
+        "the .driftcheck.json file in Downloads, or pass its path to import_design.";
 
     /// <summary>
     /// Acepta URLs del tipo https://www.figma.com/design/{key}/{name}?node-id=12-34
@@ -57,11 +57,11 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
     {
         var m = FigmaUrlRegex().Match(url);
         if (!m.Success)
-            throw new ArgumentException($"No reconozco la URL de Figma: {url}");
+            throw new ArgumentException($"Unrecognized Figma URL: {url}");
 
         var nodeMatch = NodeIdRegex().Match(url);
         if (!nodeMatch.Success)
-            throw new ArgumentException("La URL no incluye ?node-id=. Selecciona el frame en Figma y copia el link (Copy link to selection).");
+            throw new ArgumentException("The URL doesn't include ?node-id=. Select the frame in Figma and copy its link (Copy link to selection).");
 
         var nodeId = Uri.UnescapeDataString(nodeMatch.Groups[1].Value).Replace('-', ':');
         return (m.Groups[1].Value, nodeId);
@@ -93,7 +93,7 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
 
         using var doc = JsonDocument.Parse(json);
         var node = doc.RootElement.GetProperty("nodes").GetProperty(nodeId).GetProperty("document");
-        var frameBounds = ReadBox(node) ?? throw new InvalidOperationException("El nodo no tiene absoluteBoundingBox.");
+        var frameBounds = ReadBox(node) ?? throw new InvalidOperationException("The node has no absoluteBoundingBox.");
 
         // Las cajas del JSON pueden estar desactualizadas dentro de instancias; ver AutoLayout.
         var layout = AutoLayout.Reflow(node);
@@ -124,7 +124,7 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
             $"{Api}/images/{fileKey}?ids={Uri.EscapeDataString(nodeId)}&format=png&scale={scaleText}", ct));
 
         var imageUrl = doc.RootElement.GetProperty("images").GetProperty(nodeId).GetString()
-            ?? throw new InvalidOperationException("Figma no devolvió la imagen del frame.");
+            ?? throw new InvalidOperationException("Figma didn't return the frame image.");
 
         await File.WriteAllBytesAsync(path, await http.GetByteArrayAsync(imageUrl, ct), ct);
         return path;
@@ -155,7 +155,7 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
     async Task<string> GetStringAsync(string url, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(settings.FigmaToken))
-            throw new InvalidOperationException("Falta la variable de entorno FIGMA_TOKEN (Personal Access Token de Figma con alcance File content: Read-only). " + PluginHint);
+            throw new InvalidOperationException("The FIGMA_TOKEN environment variable is missing (a Figma Personal Access Token with the File content: Read-only scope). " + PluginHint);
 
         using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.Add("X-Figma-Token", settings.FigmaToken);
@@ -165,10 +165,10 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
 
         if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
         {
-            var wait = res.Headers.RetryAfter?.Delta is { } delta ? $" Figma pide esperar {FormatWait(delta)}." : "";
+            var wait = res.Headers.RetryAfter?.Delta is { } delta ? $" Figma asks to wait {FormatWait(delta)}." : "";
             throw new InvalidOperationException(
-                $"Figma rechazó la solicitud por límite de uso (429).{wait} Los frames ya descargados siguen " +
-                "funcionando desde la caché; el cupo depende del tipo de asiento de la cuenta dueña del token. " + PluginHint);
+                $"Figma rejected the request because of its rate limit (429).{wait} Frames already downloaded keep " +
+                "working from the cache; the quota depends on the seat type of the account that owns the token. " + PluginHint);
         }
 
         if (!res.IsSuccessStatusCode)
@@ -178,7 +178,7 @@ public sealed partial class FigmaClient(HttpClient http, Settings settings)
     }
 
     static string FormatWait(TimeSpan t) =>
-        t.TotalDays >= 1 ? $"{t.TotalDays:0.#} días" : t.TotalHours >= 1 ? $"{t.TotalHours:0.#} horas" : $"{Math.Ceiling(t.TotalMinutes)} minutos";
+        t.TotalDays >= 1 ? $"{t.TotalDays:0.#} days" : t.TotalHours >= 1 ? $"{t.TotalHours:0.#} hours" : $"{Math.Ceiling(t.TotalMinutes)} minutes";
 
     static void Collect(JsonElement node, Rect frame, Dictionary<string, Rect> layout, List<DesignElement> output)
     {

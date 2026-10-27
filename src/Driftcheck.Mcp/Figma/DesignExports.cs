@@ -35,8 +35,8 @@ public sealed class DesignExports(Settings settings)
     public async Task ImportAsync(Export export, string jsonCachePath, string pngCachePath, CancellationToken ct)
     {
         var root = JsonNode.Parse(await File.ReadAllTextAsync(export.Path, ct))!.AsObject();
-        var rest = root["rest"] ?? throw Invalid(export.Path, "no tiene \"rest\"");
-        var png = root["png2x"]?.GetValue<string>() ?? throw Invalid(export.Path, "no tiene \"png2x\"");
+        var rest = root["rest"] ?? throw Invalid(export.Path, "has no \"rest\"");
+        var png = root["png2x"]?.GetValue<string>() ?? throw Invalid(export.Path, "has no \"png2x\"");
 
         // El mismo formato que GET /v1/files/{key}/nodes?ids={id}, que es lo que lee GetFrameAsync.
         var nodes = new JsonObject { [export.NodeId] = rest.DeepClone() };
@@ -54,8 +54,8 @@ public sealed class DesignExports(Settings settings)
     /// </summary>
     public Export Import(string path)
     {
-        if (!File.Exists(path)) throw new ArgumentException($"No existe el archivo {path}.");
-        var export = TryReadHeader(path) ?? throw Invalid(path, $"no es un export de Driftcheck (*{Extension})");
+        if (!File.Exists(path)) throw new ArgumentException($"File not found: {path}.");
+        var export = TryReadHeader(path) ?? throw Invalid(path, $"is not a Driftcheck export (*{Extension})");
 
         Directory.CreateDirectory(settings.ImportedExportsDirectory);
         var target = System.IO.Path.Combine(settings.ImportedExportsDirectory, System.IO.Path.GetFileName(path));
@@ -88,5 +88,5 @@ public sealed class DesignExports(Settings settings)
     }
 
     static InvalidOperationException Invalid(string path, string reason) =>
-        new($"El archivo {path} {reason}. Vuelve a exportar el frame con el plugin de Driftcheck.");
+        new($"The file {path} {reason}. Export the frame again with the Driftcheck plugin.");
 }
