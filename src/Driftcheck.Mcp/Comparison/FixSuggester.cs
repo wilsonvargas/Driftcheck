@@ -50,15 +50,20 @@ public static class FixSuggester
         };
     }
 
-    /// <summary>Sugerencia para una forma, un ícono o una imagen del diseño que no está en la app.</summary>
-    public static string AddShape(UiFramework fw, string unit, DesignElement d)
+    /// <summary>
+    /// Sugerencia para una forma, un ícono o una imagen del diseño que no está en la app. <paramref name="visible"/>
+    /// es lo que se ve en el render; un ícono suele ser una capa más grande con margen alrededor del dibujo.
+    /// </summary>
+    public static string AddShape(UiFramework fw, string unit, DesignElement d, Rect visible)
     {
-        var size = $"{N(d.Bounds.Width)}×{N(d.Bounds.Height)} {unit}";
+        var size = $"{N(visible.Width)}×{N(visible.Height)} {unit}";
+        if (d.Shape != ShapeKind.Shape && (N(d.Bounds.Width) != N(visible.Width) || N(d.Bounds.Height) != N(visible.Height)))
+            size += $" (la capa en Figma mide {N(d.Bounds.Width)}×{N(d.Bounds.Height)})";
         return d.Shape switch
         {
             ShapeKind.Icon => $"Falta un ícono de {size}",
             ShapeKind.Image => $"Falta una imagen de {size}",
-            _ when Math.Min(d.Bounds.Width, d.Bounds.Height) <= 2 => $"Falta una línea de {size}" + (d.Fill is { } f ? $" ({f.Hex})" : ""),
+            _ when Math.Min(visible.Width, visible.Height) <= 2 => $"Falta una línea de {size}" + (d.Fill is { } f ? $" ({f.Hex})" : ""),
             _ => $"Falta una forma de {size}" + (d.Fill is { } f && fw != UiFramework.Generic ? $": {Background(fw, f)}" : d.Fill is { } g ? $" con fondo {g.Hex}" : ""),
         };
     }
