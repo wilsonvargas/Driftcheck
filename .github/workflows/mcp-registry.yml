@@ -1,0 +1,56 @@
+name: MCP Registry
+
+# Publica src/Driftcheck.Mcp/.mcp/server.json en el registro oficial de MCP. Corre al final de Release
+# o a mano (Actions → MCP Registry → Run workflow) para una versión que ya está en NuGet.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write # login github-oidc: el namespace io.github.wilsonvargas/* sale del repo
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      # Fijado a propósito, como pide la documentación del registro; subirlo a mano.
+      MCP_PUBLISHER_VERSION: v1.8.1
+    defaults:
+      run:
+        working-directory: src/Driftcheck.Mcp/.mcp
+    steps:
+      - uses: actions/checkout@v4
+
+      # El registro rechaza un paquete que NuGet todavía no indexó (la validación puede tardar hasta una hora).
+      - name: Wait for the package on NuGet
+        run: |
+          version=$(jq -r '.packages[0].version' server.json)
+          url="https://api.nuget.org/v3-flatcontainer/driftcheck/$version/readme"
+          for i in $(seq 1 80); do
+            if curl --fail --silent --output /dev/null "$url"; then echo "Driftcheck $version is on NuGet"; exit 0; fi
+            sleep 45
+          done
+          echo "Driftcheck $version is not on NuGet after an hour" >&2
+          exit 1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+
+      - run: ./mcp-publisher login github-oidc
+      - run: ./mcp-publisher publish

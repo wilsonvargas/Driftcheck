@@ -42,3 +42,8 @@ jobs:
       - run: gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg --title "$GITHUB_REF_NAME" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # Después de NuGet: el workflow espera a que el paquete esté indexado antes de publicar.
+  mcp-registry:
+    needs: release
+    uses: ./.github/workflows/mcp-registry.yml
