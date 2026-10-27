@@ -1,3 +1,4 @@
+using System.Reflection;
 using Driftcheck.Mcp;
 using Driftcheck.Mcp.Android;
 using Driftcheck.Mcp.Comparison;
@@ -22,8 +23,11 @@ builder.Services.AddSingleton<IDeviceClient, SimulatorClient>();
 builder.Services.AddSingleton<DeviceRegistry>();
 builder.Services.AddSingleton<ScreenComparer>();
 
+// Nombre y versión del paquete (sin el sufijo +commit que agrega el SDK), no los del ensamblado.
+var version = typeof(Settings).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
+
 builder.Services
-    .AddMcpServer()
+    .AddMcpServer(o => o.ServerInfo = new() { Name = "Driftcheck", Version = version })
     .WithStdioServerTransport()
     .WithToolsFromAssembly()
     .WithRequestFilters(filters => filters.AddCallToolFilter(next => async (context, ct) =>

@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <!-- Paquete de herramienta de .NET con tipo McpServer: se corre con `dnx Driftcheck` sin clonar el repo. -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>driftcheck</ToolCommandName>
+    <PackageId>Driftcheck</PackageId>
+    <PackageType>McpServer</PackageType>
+    <Version>0.1.0</Version>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Authors>Wilson Vargas Marín</Authors>
     <Copyright>Copyright (c) 2026 Wilson Vargas Marín</Copyright>
     <Description>Local MCP server that compares a mobile app screen (Android or iOS Simulator) with its Figma design.</Description>
@@ -15,7 +22,7 @@
     <PackageProjectUrl>https://github.com/wilsonvargas/Driftcheck</PackageProjectUrl>
     <RepositoryUrl>https://github.com/wilsonvargas/Driftcheck.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>mcp;figma;android;ios;maui;visual-testing</PackageTags>
+    <PackageTags>mcp;mcp-server;figma;android;ios;maui;visual-testing</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +34,12 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Comparison\ReportTemplate.html" LogicalName="Driftcheck.Mcp.Comparison.ReportTemplate.html" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <!-- Lo lee el registro de MCP para saber cómo arrancar el servidor. -->
+    <None Include=".mcp\server.json" Pack="true" PackagePath="\.mcp\" />
   </ItemGroup>
 
   <ItemGroup>

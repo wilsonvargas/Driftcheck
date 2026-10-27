@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.wilsonvargas/driftcheck",
+  "title": "Driftcheck",
+  "description": "Compares a mobile app screen (Android or iOS Simulator) with its Figma design and suggests fixes.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/wilsonvargas/Driftcheck",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/wilsonvargas/Driftcheck",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "registryBaseUrl": "https://api.nuget.org",
+      "identifier": "Driftcheck",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "FIGMA_TOKEN",
+          "description": "Figma Personal Access Token (scope File content: Read-only). Optional if you export frames with the Driftcheck Figma plugin.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "DRIFTCHECK_OUTPUT",
+          "description": "Folder for captures, reports and the Figma cache. Default: driftcheck in the temp folder.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "DRIFTCHECK_EXPORTS",
+          "description": "Folder where Figma plugin exports are looked up. Default: Downloads.",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

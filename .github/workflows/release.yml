@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # crear el release de GitHub
+  id-token: write # Trusted Publishing de NuGet
+
+jobs:
+  release:
+    # Windows porque las pruebas usan SkiaSharp, que no trae la librería nativa de Linux.
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # El tag, el csproj y el server.json tienen que decir la misma versión.
+      - name: Check version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          csproj=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Driftcheck.Mcp/Driftcheck.Mcp.csproj)
+          server=$(grep -o '"version": "[^"]*"' src/Driftcheck.Mcp/.mcp/server.json | cut -d'"' -f4 | sort -u)
+          echo "tag=$tag csproj=$csproj server.json=$server"
+          [ "$tag" = "$csproj" ] && [ "$tag" = "$server" ]
+
+      - run: dotnet test tests/Driftcheck.Tests -c Release
+      - run: dotnet pack src/Driftcheck.Mcp -c Release -o artifacts
+
+      - uses: NuGet/login@v1
+        id: nuget
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json
+
+      - run: gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
