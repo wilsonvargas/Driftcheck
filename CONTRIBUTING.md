@@ -41,7 +41,7 @@ Code comments are currently written in Spanish; new comments in either Spanish o
 1. Update the version in `src/Driftcheck.Mcp/Driftcheck.Mcp.csproj` (`<Version>`) and in both `version` fields of `src/Driftcheck.Mcp/.mcp/server.json`.
 2. Merge to `master`, then push a tag with that version: `git tag v0.2.0 && git push origin v0.2.0`.
 3. The Release workflow checks that the tag and both files agree, runs the tests, publishes the package to NuGet (Trusted Publishing) and creates the GitHub release.
-4. Publish the new version to the MCP Registry with `mcp-publisher publish` from `src/Driftcheck.Mcp/.mcp`.
+4. Then it publishes `server.json` to the [MCP Registry](https://registry.modelcontextprotocol.io), once NuGet has indexed the package (this can take up to an hour). If that step fails, run *Actions → MCP Registry → Run workflow* again.
 
 To try the package locally before releasing:
 

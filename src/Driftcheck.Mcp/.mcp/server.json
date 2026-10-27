@@ -1,5 +1,5 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.wilsonvargas/driftcheck",
   "title": "Driftcheck",
   "description": "Compares a mobile app screen (Android or iOS Simulator) with its Figma design and suggests fixes.",
@@ -9,6 +9,15 @@
     "source": "github"
   },
   "websiteUrl": "https://github.com/wilsonvargas/Driftcheck",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/wilsonvargas/Driftcheck/master/assets/icon-512.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "512x512"
+      ]
+    }
+  ],
   "packages": [
     {
       "registryType": "nuget",
