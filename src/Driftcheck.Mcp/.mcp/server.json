@@ -3,7 +3,7 @@
   "name": "io.github.wilsonvargas/driftcheck",
   "title": "Driftcheck",
   "description": "Compares a mobile app screen (Android or iOS Simulator) with its Figma design and suggests fixes.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": {
     "url": "https://github.com/wilsonvargas/Driftcheck",
     "source": "github"
@@ -23,7 +23,7 @@
       "registryType": "nuget",
       "registryBaseUrl": "https://api.nuget.org/v3/index.json",
       "identifier": "Driftcheck",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "transport": {
         "type": "stdio"
       },
