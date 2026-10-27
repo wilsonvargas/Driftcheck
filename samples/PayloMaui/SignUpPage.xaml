@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!--
     Pantalla "Component 113" del kit Paylo de Marvilo (CC BY 4.0):
-    https://www.figma.com/design/YwEhi9Xul2s3bPwRswwWTU/?node-id=2001-9332
+    https://www.figma.com/community/file/1428007748789833465/payment-app-free-ui-kit-by-marvilo (duplicar el archivo y comparar con el frame "Component 113")
     Medidas en dp tomadas de get_design_specs (frame de 430 de ancho).
 -->
 <ContentPage

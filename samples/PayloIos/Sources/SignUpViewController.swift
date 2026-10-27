@@ -2,7 +2,7 @@ import UIKit
 
 /// Pantalla "Component 113" del kit Paylo de Marvilo (CC BY 4.0), igual que SignUpPage.xaml de PayloMaui
 /// pero con vistas nativas de UIKit: sirve para comprobar que Driftcheck no depende de MAUI en iOS.
-/// https://www.figma.com/design/YwEhi9Xul2s3bPwRswwWTU/?node-id=2001-9332
+/// https://www.figma.com/community/file/1428007748789833465/payment-app-free-ui-kit-by-marvilo (duplicar el archivo y comparar con el frame "Component 113")
 /// Medidas en pt (1 pt = 1 unidad de Figma), las mismas que en PayloMaui y PayloNative.
 final class SignUpViewController: UIViewController {
     override var preferredStatusBarStyle: UIStatusBarStyle { .darkContent }
