@@ -38,7 +38,15 @@ It works with real-world design kits, where layers are called `Frame` or `Text`,
 
 ## Quick start
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), plus `adb` for Android or Xcode for the iOS Simulator. Add Driftcheck to your MCP client; `dotnet dnx` downloads it from NuGet the first time:
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), plus `adb` for Android or Xcode for the iOS Simulator. Install Driftcheck in one click:
+
+<a href="https://insiders.vscode.dev/redirect/mcp/install?name=driftcheck&inputs=%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22figma_token%22%2C%22description%22%3A%22Figma%20Personal%20Access%20Token%20%28optional%3A%20leave%20empty%20to%20use%20the%20Driftcheck%20Figma%20plugin%29%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22dotnet%22%2C%22args%22%3A%5B%22dnx%22%2C%22Driftcheck%22%2C%22--yes%22%5D%2C%22env%22%3A%7B%22FIGMA_TOKEN%22%3A%22%24%7Binput%3Afigma_token%7D%22%7D%7D"><img src="https://img.shields.io/badge/VS_Code-Install_Driftcheck-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code"></a>
+<a href="https://insiders.vscode.dev/redirect/mcp/install?name=driftcheck&inputs=%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22figma_token%22%2C%22description%22%3A%22Figma%20Personal%20Access%20Token%20%28optional%3A%20leave%20empty%20to%20use%20the%20Driftcheck%20Figma%20plugin%29%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22type%22%3A%22stdio%22%2C%22command%22%3A%22dotnet%22%2C%22args%22%3A%5B%22dnx%22%2C%22Driftcheck%22%2C%22--yes%22%5D%2C%22env%22%3A%7B%22FIGMA_TOKEN%22%3A%22%24%7Binput%3Afigma_token%7D%22%7D%7D&quality=insiders"><img src="https://img.shields.io/badge/VS_Code_Insiders-Install_Driftcheck-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code Insiders"></a>
+<a href="https://cursor.com/en/install-mcp?name=driftcheck&config=eyJjb21tYW5kIjoiZG90bmV0IiwiYXJncyI6WyJkbngiLCJEcmlmdGNoZWNrIiwiLS15ZXMiXSwiZW52Ijp7IkZJR01BX1RPS0VOIjoiIn19"><picture><source media="(prefers-color-scheme: dark)" srcset="https://cursor.com/deeplink/mcp-install-light.svg"><img src="https://cursor.com/deeplink/mcp-install-dark.svg" alt="Install in Cursor" height="20"></picture></a>
+
+VS Code asks for your Figma token; leave it empty to use the Figma plugin instead. In Cursor, add the token to `FIGMA_TOKEN` in the server's configuration afterwards.
+
+Or add it to any MCP client by hand; `dotnet dnx` downloads it from NuGet the first time:
 
 ```json
 {
