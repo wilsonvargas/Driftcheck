@@ -1,9 +1,38 @@
+<img src="https://raw.githubusercontent.com/wilsonvargas/Driftcheck/master/assets/icon-512.png" alt="" width="72" align="right">
+
 # Driftcheck
 
 [![CI](https://github.com/wilsonvargas/Driftcheck/actions/workflows/ci.yml/badge.svg)](https://github.com/wilsonvargas/Driftcheck/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![NuGet](https://img.shields.io/nuget/v/Driftcheck.svg)](https://www.nuget.org/packages/Driftcheck)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wilsonvargas/Driftcheck/blob/master/LICENSE)
 
 A local MCP server that compares a mobile app's screen (Android, or the iOS Simulator on macOS) with its design in Figma, so an AI agent can check whether what it built looks like the design.
+
+<!-- mcp-name: io.github.wilsonvargas/driftcheck -->
+
+## Quick start
+
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), plus `adb` for Android or Xcode for the iOS Simulator (see [Requirements](#requirements)). Add Driftcheck to your MCP client; `dotnet dnx` downloads it from NuGet the first time:
+
+```json
+{
+  "mcpServers": {
+    "driftcheck": {
+      "command": "dotnet",
+      "args": ["dnx", "Driftcheck", "--yes"],
+      "env": { "FIGMA_TOKEN": "<your Figma token>" }
+    }
+  }
+}
+```
+
+With Claude Code:
+
+```bash
+claude mcp add driftcheck -e FIGMA_TOKEN=<your Figma token> -- dotnet dnx Driftcheck --yes
+```
+
+Then run your app on an emulator, device or simulator and ask your agent something like *"compare the app on the emulator with https://www.figma.com/design/…?node-id=…"*. Without a Figma token, use the [Figma plugin](#figma-api-limits) instead.
 
 ## How it compares
 
@@ -47,7 +76,7 @@ Figma limits how many calls a token can make, and on some seat types the quota i
 - The JSON and PNG of each frame are stored in `driftcheck/cache` inside the temp folder (`%TEMP%` on Windows, `$TMPDIR` on macOS) and reused on every comparison.
 - `get_design_specs` and `compare_screen` accept `refresh=true` to download again a frame that changed in Figma. Use it only when needed.
 - If Figma responds `429`, the error says how long to wait.
-- **Without a token or quota**, the Figma plugin in `tools/figma-export-plugin` exports the frame (JSON + 2x render) to a `.driftcheck.json` file without using the REST API. If it lands in **Downloads**, `get_design_specs` and `compare_screen` pick it up on their own from the frame link; if it lands in another folder, import it with `import_design`. Exporting the frame again updates the design. See [the plugin README](tools/figma-export-plugin/README.md).
+- **Without a token or quota**, the Figma plugin in `tools/figma-export-plugin` exports the frame (JSON + 2x render) to a `.driftcheck.json` file without using the REST API. If it lands in **Downloads**, `get_design_specs` and `compare_screen` pick it up on their own from the frame link; if it lands in another folder, import it with `import_design`. Exporting the frame again updates the design. See [the plugin README](https://github.com/wilsonvargas/Driftcheck/blob/master/tools/figma-export-plugin/README.md).
 
 ## Requirements
 
@@ -58,7 +87,7 @@ Figma limits how many calls a token can make, and on some seat types the quota i
 - Optional: `DRIFTCHECK_OUTPUT` to change the output folder (default: `driftcheck` in the temp folder)
 - Optional: `DRIFTCHECK_EXPORTS` to change where plugin exports are looked up (default: Downloads)
 
-## Usage
+## Running from source
 
 ```bash
 git clone https://github.com/wilsonvargas/Driftcheck.git
@@ -78,8 +107,6 @@ The `.mcp.json` at the root registers the server for MCP clients that read it wh
   }
 }
 ```
-
-Then ask your agent something like *"compare the app on the emulator with https://www.figma.com/design/…?node-id=…"*.
 
 ## Repository layout
 
@@ -102,8 +129,8 @@ To compare the sample apps, open the [Paylo kit](https://www.figma.com/community
 
 ## Contributing
 
-Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test and propose changes, and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](https://github.com/wilsonvargas/Driftcheck/blob/master/CONTRIBUTING.md) for how to build, test and propose changes, and [SECURITY.md](https://github.com/wilsonvargas/Driftcheck/blob/master/SECURITY.md) to report a vulnerability privately.
 
 ## License
 
-Driftcheck is released under the [MIT License](LICENSE). Third-party material in the sample apps keeps its own license: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Driftcheck is released under the [MIT License](https://github.com/wilsonvargas/Driftcheck/blob/master/LICENSE). Third-party material in the sample apps keeps its own license: see [THIRD_PARTY_NOTICES.md](https://github.com/wilsonvargas/Driftcheck/blob/master/THIRD_PARTY_NOTICES.md).

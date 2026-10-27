@@ -36,6 +36,20 @@ To try a change end to end, the sample apps in `samples/` reproduce a screen of 
 
 Code comments are currently written in Spanish; new comments in either Spanish or English are fine. Match the style of the surrounding code.
 
+## Releasing (maintainers)
+
+1. Update the version in `src/Driftcheck.Mcp/Driftcheck.Mcp.csproj` (`<Version>`) and in both `version` fields of `src/Driftcheck.Mcp/.mcp/server.json`.
+2. Merge to `master`, then push a tag with that version: `git tag v0.2.0 && git push origin v0.2.0`.
+3. The Release workflow checks that the tag and both files agree, runs the tests, publishes the package to NuGet (Trusted Publishing) and creates the GitHub release.
+4. Publish the new version to the MCP Registry with `mcp-publisher publish` from `src/Driftcheck.Mcp/.mcp`.
+
+To try the package locally before releasing:
+
+```bash
+dotnet pack src/Driftcheck.Mcp -c Release -o <some folder>
+dotnet dnx Driftcheck --add-source <some folder> --yes
+```
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).

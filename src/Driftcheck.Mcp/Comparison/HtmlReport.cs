@@ -57,6 +57,7 @@ public static class HtmlReport
         // El serializador escapa < y > (<), así que un texto con "</script>" no rompe la página.
         var html = Template.Value
             .Replace("__TITLE__", WebUtility.HtmlEncode(m.Title))
+            .Replace("__ICON__", Branding.IconDataUri)
             .Replace("__DATA__", JsonSerializer.Serialize(data));
         File.WriteAllText(path, html);
     }
