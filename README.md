@@ -92,6 +92,8 @@ Then ask your agent something like *"compare the app on the emulator with https:
 - `samples/PayloIos` — the same screen with native iOS views (UIKit in Swift, no MAUI or storyboard). `./build.sh` builds it with `swiftc` (no Xcode project) and installs it on the booted simulator
 - `tests/Driftcheck.Tests` — comparer tests with synthetic screens
 
+To compare the sample apps, open the [Paylo kit](https://www.figma.com/community/file/1428007748789833465/payment-app-free-ui-kit-by-marvilo) in the Figma Community, duplicate it to your drafts, select the frame **Component 113** (the sign-up screen) and use *Copy link to selection*. Then run a sample on the emulator or simulator and ask your agent to compare it with that link.
+
 ## Current limitations
 
 - iOS on the simulator only (not on physical devices).

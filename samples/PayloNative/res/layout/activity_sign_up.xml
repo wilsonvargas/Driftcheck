@@ -2,7 +2,7 @@
 <!--
     Pantalla "Component 113" del kit Paylo de Marvilo (CC BY 4.0), igual que SignUpPage.xaml de PayloMaui
     pero con vistas nativas de Android: sirve para comprobar que Driftcheck no depende de MAUI.
-    https://www.figma.com/design/YwEhi9Xul2s3bPwRswwWTU/?node-id=2001-9332
+    https://www.figma.com/community/file/1428007748789833465/payment-app-free-ui-kit-by-marvilo (duplicar el archivo y comparar con el frame "Component 113")
     La raíz toma el foco al abrir: si no, el campo de email muestra un cursor que parpadea y que el
     diseño (la pantalla antes de tocarla) no tiene.
 -->
